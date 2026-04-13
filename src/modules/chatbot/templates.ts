@@ -22,24 +22,18 @@ Você já faz algum acompanhamento nutricional atualmente?
 4️⃣ Tenho acompanhamento médico (passar detalhes)`,
 
   APRESENTACAO_PLANOS: () =>
-    `Temos 3 opções para te ajudar:
+    `Boa notícia! Tenho 3 opções pensadas pra perfis diferentes, vou te explicar cada uma 😊
 
-📋 *PLANO INICIAL* — R$ ${process.env.VALOR_PLANO_INICIAL ?? '???'}
-• 1 Consulta de 60min
-• Avaliação completa (antropometria, bioimpedância)
-• Plano básico 30 dias
+1️⃣ *Plano Inicial* — R$ ${process.env.VALOR_PLANO_INICIAL ?? '???'}
+Uma consulta completa de 60min com avaliação física (antropometria e bioimpedância) e um plano alimentar personalizado pra 30 dias. Ideal pra quem quer dar o primeiro passo!
 
-📈 *PLANO ACOMPANHAMENTO (3 meses)* — R$ ${process.env.VALOR_PLANO_ACOMPANHAMENTO ?? '???'}
-• Consulta Inicial + 3 Reavaliações
-• Plano personalizado ajustável
-• Acompanhamento semanal via chat
+2️⃣ *Plano Acompanhamento — 3 meses* — R$ ${process.env.VALOR_PLANO_ACOMPANHAMENTO ?? '???'}
+Além da consulta inicial, você tem 3 reavaliações ao longo do processo, o plano vai sendo ajustado conforme sua evolução e tem suporte semanal via chat. Pra quem quer resultado de verdade!
 
-⭐ *PLANO PREMIUM (6 meses)* — R$ ${process.env.VALOR_PLANO_PREMIUM ?? '???'}
-• Tudo do Acompanhamento
-• Suporte prioritário
-• Receitas customizadas
+3️⃣ *Plano Premium — 6 meses* — R$ ${process.env.VALOR_PLANO_PREMIUM ?? '???'}
+Tudo do plano anterior, mais suporte prioritário e receitas totalmente customizadas pra sua rotina. Pra quem quer uma transformação completa! 🌟
 
-Qual faz mais sentido para você?`,
+Com qual você se identificou mais?`,
 
   AGENDAMENTO: (slots: { dia: string; horas: string[] }[]) => {
     const linhas = slots.map((s, i) => `📅 ${s.dia}:\n• ${s.horas.join(' | ')}`);
