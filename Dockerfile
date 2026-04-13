@@ -1,7 +1,7 @@
 FROM node:20-slim
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 COPY . .
 RUN npm run build
 EXPOSE 3000
