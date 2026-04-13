@@ -21,32 +21,48 @@ Você já faz algum acompanhamento nutricional atualmente?
 3️⃣ Estou com outro profissional, mas quero mudar
 4️⃣ Tenho acompanhamento médico (passar detalhes)`,
 
-  APRESENTACAO_PLANOS: () =>
+  APRESENTACAO_PLANOS_INFO: () =>
     `⭐ *ACOMPANHAMENTO NUTRICIONAL PREMIUM*
 
-O método mais completo e individualizado para quem busca resultados reais e sustentáveis. Aqui você não recebe apenas um plano alimentar, mas um acompanhamento completo com ajustes constantes e suporte próximo.
+O método mais completo e individualizado para quem busca resultados reais e sustentáveis. Aqui você não recebe apenas um plano alimentar, mas um acompanhamento completo com ajustes constantes e suporte próximo durante todo o processo.
 
-✅ *O que está incluído:*
+Esse plano é ideal para quem quer *transformação completa* com acompanhamento próximo e profissional. 💪
+
+*Acompanhamento e evolução:*
 ✔ Plano alimentar 100% individualizado
 ✔ Consultas presenciais ou on-line a cada 30 dias
 ✔ Avaliação física completa
 ✔ Check-in semanal
-✔ Ajustes contínuos conforme sua evolução
+✔ Ajustes contínuos conforme evolução
 ✔ Suporte direto via WhatsApp
 
-🛠 *Ferramentas exclusivas:*
-✔ WebDiet • Wellts • Move Health • iMetas
+*Ferramentas exclusivas:*
+✔ WebDiet — plano sempre atualizado
+✔ Wellts — check-ins organizados
+✔ Move Health — acompanhamento de hábitos
+✔ iMetas — definição e acompanhamento de metas
 
-🎁 *Bônus:* Grupo exclusivo de pacientes + Garrafinha personalizada
+*Benefícios extras:*
+✔ Grupo exclusivo de pacientes
+🎁 Garrafinha personalizada`,
 
-💰 *Investimento:*
-• 3 meses: ${process.env.PLANO_3MESES ?? '3x de R$380'}
-• 6 meses: ${process.env.PLANO_6MESES ?? '6x de R$350'}
-• 12 meses: ${process.env.PLANO_12MESES ?? '12x de R$330'}
+  APRESENTACAO_PLANOS_VALOR: () =>
+    `💰 *Investimento no Acompanhamento Premium:*
 
-💳 *Pagamento:* Pix/dinheiro à vista ou cartão parcelado
+• 3 meses → ${process.env.PLANO_3MESES ?? '3x de R$380'}
+• 6 meses → ${process.env.PLANO_6MESES ?? '6x de R$350'}
+• 12 meses → ${process.env.PLANO_12MESES ?? '12x de R$330'}
 
-Qual período faz mais sentido para você? 😊`,
+💳 *Formas de pagamento:*
+• Pix ou dinheiro: pagamento à vista (valor integral)
+• Cartão de crédito: parcelado conforme o período escolhido ✅
+
+Qual período faz mais sentido para você? 😊
+Posso te agendar uma consulta para começarmos!`,
+
+  // mantido para compatibilidade com código existente — chama os dois acima
+  APRESENTACAO_PLANOS: () =>
+    `⭐ *ACOMPANHAMENTO NUTRICIONAL PREMIUM*\n\nDigite "planos" para ver os detalhes e valores.`,
 
   AGENDAMENTO: (slots: { dia: string; horas: string[] }[]) => {
     const linhas = slots.map((s, i) => `📅 ${s.dia}:\n• ${s.horas.join(' | ')}`);

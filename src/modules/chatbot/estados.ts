@@ -23,7 +23,12 @@ export const GATILHOS: Gatilho[] = [
   {
     palavras: ['quanto custa', 'valor', 'preco', 'precos', 'planos', 'investimento'],
     handler: async (whatsapp) => {
-      await enviarWhatsApp(whatsapp, TEMPLATES.APRESENTACAO_PLANOS());
+      // 1ª mensagem: apresenta o acompanhamento
+      await enviarWhatsApp(whatsapp, TEMPLATES.APRESENTACAO_PLANOS_INFO());
+      // pequena pausa para parecer mais natural
+      await new Promise((r) => setTimeout(r, 1500));
+      // 2ª mensagem: envia os valores
+      await enviarWhatsApp(whatsapp, TEMPLATES.APRESENTACAO_PLANOS_VALOR());
       await atualizarEstado(whatsapp, 'APRESENTACAO_PLANOS');
     },
   },
