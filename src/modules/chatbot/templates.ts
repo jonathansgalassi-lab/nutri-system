@@ -2,133 +2,158 @@ import { interpolar } from '../../shared/utils';
 
 export const TEMPLATES = {
   RECEPCAO: () =>
-    `Oi! 👋 Que legal você estar aqui! Sou o assistente do Nutr. ${process.env.NUTRICIONISTA_NOME ?? 'Jonathan Galassi'}, nutricionista clínico. Estou aqui para te ajudar! 🥦
+    `Olá! Tudo bem? 😊 Seja muito bem-vindo(a)!
 
-Me conta: qual é seu principal objetivo agora?
-1️⃣ Emagrecimento/Definição
+Sou o assistente do Nutr. ${process.env.NUTRICIONISTA_NOME ?? 'Jonathan Galassi'} e estou aqui para te ajudar a dar o primeiro passo rumo a uma vida mais saudável! 🥦
+
+Me conta uma coisa: qual é o seu principal objetivo agora?
+
+1️⃣ Emagrecimento e definição corporal
 2️⃣ Ganho de massa muscular
 3️⃣ Saúde geral e qualidade de vida
-4️⃣ Energia e performance
+4️⃣ Mais energia e performance
 5️⃣ Condição específica (diabetes, pressão, colesterol…)
-6️⃣ Outros`,
+6️⃣ Outro objetivo
+
+_Responde com o número da opção que mais combina com você_ 😉`,
 
   QUALIFICACAO: (nome: string) =>
-    `Ótimo, ${nome}! 💪 Para te ajudar melhor, me diz:
+    `Que objetivo incrível, ${nome}! 💪 Fico feliz que você esteja buscando isso.
 
-Você já faz algum acompanhamento nutricional atualmente?
-1️⃣ Não, é minha primeira vez
-2️⃣ Já fiz antes, mas parei
+Só pra eu entender melhor o seu histórico:
+
+Você já fez algum acompanhamento nutricional antes?
+
+1️⃣ Não, seria minha primeira vez
+2️⃣ Já fiz, mas acabei parando
 3️⃣ Estou com outro profissional, mas quero mudar
-4️⃣ Tenho acompanhamento médico (passar detalhes)`,
+4️⃣ Tenho acompanhamento médico em paralelo
+
+Pode falar à vontade, tá aqui sem julgamento! 🙂`,
 
   APRESENTACAO_PLANOS_INFO: () =>
-    `⭐ *ACOMPANHAMENTO NUTRICIONAL PREMIUM*
+    `Perfeito! Então deixa eu te apresentar o que temos de melhor 🌟
 
-O método mais completo e individualizado para quem busca resultados reais e sustentáveis. Aqui você não recebe apenas um plano alimentar, mas um acompanhamento completo com ajustes constantes e suporte próximo durante todo o processo.
+⭐ *ACOMPANHAMENTO NUTRICIONAL PREMIUM*
 
-Esse plano é ideal para quem quer *transformação completa* com acompanhamento próximo e profissional. 💪
+Esse é o nosso método mais completo — ele foi criado pra quem quer resultados reais, duradouros e com suporte próximo durante todo o caminho.
 
-*Acompanhamento e evolução:*
-✔ Plano alimentar 100% individualizado
-✔ Consultas presenciais ou on-line a cada 30 dias
+Aqui você não recebe só um papel com dieta. Você tem um acompanhamento de verdade, com ajustes constantes conforme você for evoluindo. 💚
+
+*O que está incluído:*
+✔ Plano alimentar 100% personalizado para você
+✔ Consultas presenciais ou online a cada 30 dias
 ✔ Avaliação física completa
-✔ Check-in semanal
-✔ Ajustes contínuos conforme evolução
-✔ Suporte direto via WhatsApp
+✔ Check-in semanal para acompanhar sua evolução
+✔ Ajustes no plano conforme seus resultados
+✔ Suporte direto via WhatsApp sempre que precisar
 
-*Ferramentas exclusivas:*
-✔ WebDiet — plano sempre atualizado
-✔ Wellts — check-ins organizados
-✔ Move Health — acompanhamento de hábitos
-✔ iMetas — definição e acompanhamento de metas
+*Ferramentas que você vai ter acesso:*
+✔ *WebDiet* — seu plano sempre atualizado no app
+✔ *Wellts* — check-ins organizados e fáceis
+✔ *Move Health* — acompanhamento de hábitos
+✔ *iMetas* — definição e acompanhamento das suas metas
 
-*Benefícios extras:*
-✔ Grupo exclusivo de pacientes
-🎁 Garrafinha personalizada`,
+🎁 *Bônus especiais:*
+✔ Acesso ao grupo exclusivo de pacientes
+✔ Garrafinha personalizada`,
 
   APRESENTACAO_PLANOS_VALOR: () =>
-    `💰 *Investimento no Acompanhamento Premium:*
+    `E agora a parte que todo mundo quer saber 😄
 
-• 3 meses → ${process.env.PLANO_3MESES ?? '3x de R$380'}
-• 6 meses → ${process.env.PLANO_6MESES ?? '6x de R$350'}
-• 12 meses → ${process.env.PLANO_12MESES ?? '12x de R$330'}
+💰 *Investimento no Acompanhamento Premium:*
+
+📆 *3 meses* → ${process.env.PLANO_3MESES ?? '3x de R$380'}
+📆 *6 meses* → ${process.env.PLANO_6MESES ?? '6x de R$350'}
+📆 *12 meses* → ${process.env.PLANO_12MESES ?? '12x de R$330'}
 
 💳 *Formas de pagamento:*
-• Pix ou dinheiro: pagamento à vista (valor integral)
-• Cartão de crédito: parcelado conforme o período escolhido ✅
+• Pix ou dinheiro — valor integral à vista
+• Cartão de crédito — parcelado conforme o período ✅
 
-Qual período faz mais sentido para você? 😊
-Posso te agendar uma consulta para começarmos!`,
+_Quanto mais tempo de compromisso, melhor o valor e melhores os resultados também!_
 
-  // mantido para compatibilidade com código existente — chama os dois acima
+Qual período faz mais sentido pra você agora? Se quiser, posso já te agendar uma consulta pra começarmos! 🗓`,
+
+  // mantido para compatibilidade
   APRESENTACAO_PLANOS: () =>
-    `⭐ *ACOMPANHAMENTO NUTRICIONAL PREMIUM*\n\nDigite "planos" para ver os detalhes e valores.`,
+    `Quer conhecer o Acompanhamento Premium? É só digitar *"planos"* que te mostro tudo! 😊`,
 
   AGENDAMENTO: (slots: { dia: string; horas: string[] }[]) => {
-    const linhas = slots.map((s, i) => `📅 ${s.dia}:\n• ${s.horas.join(' | ')}`);
-    return `Ótimo! Vamos agendar sua consulta? 📅
+    const linhas = slots.map((s) => `📅 *${s.dia}:*\n• ${s.horas.join(' | ')}`);
+    return `Ótimo! Vamos marcar sua consulta? 🗓
 
-Tenho esses horários disponíveis:
+Esses são os horários disponíveis agora:
 
 ${linhas.join('\n\n')}
 
-Qual prefere? Responde com o número do horário (ex: "1")`;
+Responde com o número do horário que você prefere (ex: *"1"*) e já deixamos confirmado! 😊`;
   },
 
   CONFIRMACAO_AGENDAMENTO: (data: string, hora: string, local: string) =>
-    `✅ Consulta confirmada!
+    `✅ *Consulta confirmada!* Que ótimo, mal posso esperar pra te atender! 🎉
 
-📅 Data: ${data}
-⏰ Horário: ${hora}
-🏥 Local: ${local || (process.env.NUTRICIONISTA_ENDERECO ?? 'A confirmar')}
-📞 Contato: ${process.env.NUTRICIONISTA_WHATSAPP ?? '+5543991622448'}
+📅 *Data:* ${data}
+⏰ *Horário:* ${hora}
+🏥 *Local:* ${local || (process.env.NUTRICIONISTA_ENDERECO ?? 'A confirmar')}
+📞 *Contato:* ${process.env.NUTRICIONISTA_WHATSAPP ?? '+5543991622448'}
 
-💡 Para aproveitar ao máximo sua consulta, preencha o formulário de pré-avaliação: {LINK_FORM}
+💡 Pra aproveitar ao máximo nossa consulta, vou te enviar um formulário rápido de pré-avaliação. Leva menos de 5 minutos e me ajuda a já chegar preparado pra você!
 
-_Até lá! Qualquer dúvida é só chamar aqui_ 😊`,
+👇 Acesse aqui: {LINK_FORM}
+
+_Qualquer dúvida é só me chamar aqui. Até lá!_ 😊`,
 
   FORMS_PRECONSULTA: (link: string) =>
-    `📋 Antes da sua consulta, preencha o formulário de pré-avaliação:
+    `📋 Aqui está o formulário de pré-avaliação:
 
 ${link}
 
-Leva menos de 5 minutos e ajuda a nutricionista a personalizar seu atendimento desde o primeiro momento! 🎯`,
+É bem rápido e faz toda a diferença no seu atendimento! Com ele eu já chego na consulta com muito mais informações sobre você 🎯
+
+_Pode preencher com calma, tá?_ 😊`,
 
   DEPOIMENTO: () =>
-    `Ótima pergunta! 😊 Alguns resultados dos nossos pacientes:
+    `Que legal que você quer saber mais! 😊
 
-💬 *"Perdi 8kg em 3 meses sem passar fome"* — Mariana, 32 anos
-💬 *"Ganhei 4kg de massa em 4 meses"* — Rafael, 28 anos
-💬 *"Controlei minha diabetes com alimentação"* — Carlos, 55 anos
+Olha alguns resultados reais de quem passou pelo acompanhamento:
 
-Cada caso é único e o plano é 100% personalizado para você!
+💬 *"Perdi 8kg em 3 meses sem passar fome. Mudou minha relação com a comida!"* — Mariana, 32 anos
+💬 *"Ganhei 4kg de massa em 4 meses, com energia lá em cima!"* — Rafael, 28 anos
+💬 *"Consegui controlar minha diabetes só com alimentação. Não acreditava que era possível."* — Carlos, 55 anos
 
-Quer saber mais? Digite "quero agendar" para conhecer os planos 🌿`,
+Cada pessoa é única e o plano é 100% personalizado pra você. Nada de dieta genérica! 🌿
+
+Quer agendar uma conversa pra eu te contar mais? É só digitar *"agendar"* 😉`,
 
   ALERGIA_REGISTRADA: () =>
-    `Anotado! ✅ Trabalhamos com restrições alimentares, alergias e intolerâncias.
+    `Anotado, obrigado por me contar! ✅
 
-O plano será 100% adaptado para você, sem nenhum risco. Pode ficar tranquilo(a)! 🌿`,
+Trabalhamos com todo tipo de restrição alimentar — alergias, intolerâncias, preferências. O plano vai ser 100% adaptado pra sua realidade, sem nenhum risco. Pode ficar tranquilo(a)! 🌿
+
+Se tiver mais alguma restrição, pode falar à vontade 😊`,
 
   URGENTE: (slots: string) =>
-    `Entendo a urgência! ⚡ Tenho esses horários disponíveis nos próximos dias:
+    `Entendo, vamos resolver isso rápido! ⚡
+
+Esses são os horários mais próximos disponíveis:
 
 ${slots}
 
-Quer garantir um deles agora?`,
+Qual funciona melhor pra você? Responde com o número e já garantimos! 🗓`,
 
   ONLINE_CONFIRMADO: () =>
-    `Sim! Atendemos online via videochamada 💻
+    `Sim, atendemos online! 💻 E funciona super bem!
 
-Funciona exatamente como o presencial — avaliação completa, plano personalizado e acompanhamento — tudo no conforto da sua casa.
+É exatamente como o presencial — avaliação completa, plano personalizado e acompanhamento semanal — tudo no conforto da sua casa, sem precisar sair de onde você está.
 
-Quer saber mais sobre os planos? Digite "planos" 📋`,
+Quer ver os planos disponíveis? É só digitar *"planos"* 📋`,
 
   NAO_ENTENDEU: () =>
-    `Hmm, não entendi bem 😅 Pode reformular?
+    `Hmm, acho que não entendi direito 😅 Pode me explicar de outro jeito?
 
 Ou se preferir, pode digitar:
-• "planos" para ver os planos disponíveis
-• "agendar" para marcar uma consulta
-• "dúvida" para falar com a nutricionista`,
+• *"planos"* — ver o Acompanhamento Premium e valores
+• *"agendar"* — marcar uma consulta
+• *"dúvida"* — falar diretamente com o nutricionista`,
 };

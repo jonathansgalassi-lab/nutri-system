@@ -73,13 +73,13 @@ export const GATILHOS: Gatilho[] = [
 
 // ─── Funções de estado ────────────────────────────────────────
 
-export async function buscarOuCriarConversa(whatsapp: string): Promise<ConversaBot> {
+export async function buscarOuCriarConversa(whatsapp: string): Promise<{ conversa: ConversaBot; nova: boolean }> {
   const existente = await queryOne<ConversaBot>(
     'SELECT * FROM conversas_bot WHERE whatsapp = $1',
     [whatsapp]
   );
 
-  if (existente) return existente;
+  if (existente) return { conversa: existente, nova: false };
 
   const [nova] = await query<ConversaBot>(
     `INSERT INTO conversas_bot (whatsapp, estado_atual, contexto, ultima_mensagem)
@@ -87,7 +87,7 @@ export async function buscarOuCriarConversa(whatsapp: string): Promise<ConversaB
      RETURNING *`,
     [whatsapp]
   );
-  return nova;
+  return { conversa: nova, nova: true };
 }
 
 export async function atualizarEstado(whatsapp: string, estado: EstadoBot): Promise<void> {
@@ -107,7 +107,14 @@ export async function atualizarContexto(whatsapp: string, contexto: ContextoBot)
 // ─── Máquina de estados ──────────────────────────────────────
 
 export async function processarMensagem(whatsapp: string, texto: string): Promise<void> {
-  const conversa = await buscarOuCriarConversa(whatsapp);
+  const { conversa, nova } = await buscarOuCriarConversa(whatsapp);
+
+  // Se for a primeira mensagem, envia boas-vindas e aguarda próxima resposta
+  if (nova) {
+    await enviarWelcome(whatsapp);
+    return;
+  }
+
   const textoNorm = normalizarTexto(texto);
 
   // Verifica gatilhos independentes de estado
@@ -174,7 +181,9 @@ async function handleRecepcao(whatsapp: string, texto: string, conversa: Convers
 
 async function handleQualificacao(whatsapp: string, _texto: string, conversa: ConversaBot) {
   await atualizarEstado(whatsapp, 'APRESENTACAO_PLANOS');
-  await enviarWhatsApp(whatsapp, TEMPLATES.APRESENTACAO_PLANOS());
+  await enviarWhatsApp(whatsapp, TEMPLATES.APRESENTACAO_PLANOS_INFO());
+  await new Promise((r) => setTimeout(r, 1500));
+  await enviarWhatsApp(whatsapp, TEMPLATES.APRESENTACAO_PLANOS_VALOR());
 }
 
 async function handleApresentacaoPlanos(whatsapp: string, texto: string, conversa: ConversaBot) {

@@ -12,7 +12,8 @@ chatbotRouter.post('/', async (req: Request, res: Response) => {
     // ── Twilio ──────────────────────────────────────────────
     // Twilio envia form-encoded: From=whatsapp:+55..., Body=texto
     if (req.body?.From && req.body?.Body) {
-      const whatsapp = String(req.body.From).replace('whatsapp:', '').replace(/\D/g, '');
+      // Mantém o + internacional: whatsapp:+5543... → +5543...
+      const whatsapp = String(req.body.From).replace('whatsapp:', '');
       const texto = String(req.body.Body).trim();
 
       console.log(`[chatbot] Twilio | ${whatsapp}: "${texto}"`);
