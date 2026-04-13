@@ -235,7 +235,7 @@ async function iniciarAgendamento(whatsapp: string) {
   // Salva opções no contexto para o próximo passo
   const slotsParaContexto = slots.slice(0, 6).map((s) => s.inicio.toISOString());
 
-  const conversa = await buscarOuCriarConversa(whatsapp);
+  const { conversa } = await buscarOuCriarConversa(whatsapp);
   await atualizarContexto(whatsapp, { ...conversa.contexto, slots_disponiveis: slotsParaContexto });
 
   await enviarWhatsApp(whatsapp, TEMPLATES.AGENDAMENTO(slotsFormatados));
