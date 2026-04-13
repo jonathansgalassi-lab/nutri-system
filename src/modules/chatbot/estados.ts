@@ -21,14 +21,22 @@ interface Gatilho {
 
 export const GATILHOS: Gatilho[] = [
   {
-    palavras: ['quanto custa', 'valor', 'preco', 'precos', 'planos', 'investimento'],
-    handler: async (whatsapp) => {
-      await enviarWhatsApp(whatsapp, TEMPLATES.APRESENTACAO_PLANOS());
-      await atualizarEstado(whatsapp, 'APRESENTACAO_PLANOS');
+    palavras: ['quanto custa', 'valor', 'preco', 'precos', 'investimento'],
+    handler: async (whatsapp, conversa) => {
+      const nome = (conversa.contexto?.nome as string) ?? 'você';
+      await enviarWhatsApp(whatsapp, TEMPLATES.VENDAS_PRECOS(nome));
+      await atualizarEstado(whatsapp, 'VENDAS_PRECOS');
     },
   },
   {
-    palavras: ['funciona', 'resultado', 'depoimento', 'prova'],
+    palavras: ['beneficio', 'o que inclui', 'como funciona', 'o que tem'],
+    handler: async (whatsapp) => {
+      await enviarWhatsApp(whatsapp, TEMPLATES.VENDAS_BENEFICIOS_1());
+      await atualizarEstado(whatsapp, 'VENDAS_BENEFICIOS_1');
+    },
+  },
+  {
+    palavras: ['resultado', 'depoimento', 'prova', 'funciona mesmo'],
     handler: async (whatsapp) => {
       await enviarWhatsApp(whatsapp, TEMPLATES.DEPOIMENTO());
     },
@@ -41,17 +49,6 @@ export const GATILHOS: Gatilho[] = [
     },
   },
   {
-    palavras: ['urgente', 'rapido', 'logo', 'essa semana', 'hoje', 'amanha'],
-    handler: async (whatsapp) => {
-      const slots = await buscarSlotsDisponiveis(3);
-      const texto = slots
-        .slice(0, 4)
-        .map((s) => `• ${format(s.inicio, "dd/MM 'às' HH:mm", { locale: ptBR })}`)
-        .join('\n');
-      await enviarWhatsApp(whatsapp, TEMPLATES.URGENTE(texto || 'Nenhum horário disponível no momento. Fale diretamente com a nutricionista.'));
-    },
-  },
-  {
     palavras: ['online', 'remoto', 'videochamada', 'virtual'],
     handler: async (whatsapp, conversa) => {
       await enviarWhatsApp(whatsapp, TEMPLATES.ONLINE_CONFIRMADO());
@@ -59,9 +56,9 @@ export const GATILHOS: Gatilho[] = [
     },
   },
   {
-    palavras: ['agendar', 'marcar', 'consulta', 'horario', 'horarios', 'disponivel'],
+    palavras: ['agendar', 'marcar', 'horario', 'horarios', 'disponivel'],
     handler: async (whatsapp) => {
-      await iniciarAgendamento(whatsapp);
+      await enviarWhatsApp(whatsapp, TEMPLATES.VENDAS_FORA_ESCOPO());
     },
   },
 ];
@@ -78,7 +75,7 @@ export async function buscarOuCriarConversa(whatsapp: string): Promise<ConversaB
 
   const [nova] = await query<ConversaBot>(
     `INSERT INTO conversas_bot (whatsapp, estado_atual, contexto, ultima_mensagem)
-     VALUES ($1, 'RECEPCAO', '{}', NOW())
+     VALUES ($1, 'VENDAS_SAUDACAO', '{}', NOW())
      RETURNING *`,
     [whatsapp]
   );
@@ -115,6 +112,29 @@ export async function processarMensagem(whatsapp: string, texto: string): Promis
 
   // Processa por estado atual
   switch (conversa.estado_atual as EstadoBot) {
+    // ─── Fluxo de vendas premium ─────────────────────────────
+    case 'VENDAS_SAUDACAO':
+      await handleVendasSaudacao(whatsapp, texto, conversa);
+      break;
+    case 'VENDAS_APRESENTACAO':
+      await handleVendasApresentacao(whatsapp, conversa);
+      break;
+    case 'VENDAS_BENEFICIOS_1':
+      await handleVendasBeneficios1(whatsapp);
+      break;
+    case 'VENDAS_BENEFICIOS_2':
+      await handleVendasBeneficios2(whatsapp);
+      break;
+    case 'VENDAS_BENEFICIOS_3':
+      await handleVendasBeneficios3(whatsapp, conversa);
+      break;
+    case 'VENDAS_PRECOS':
+      await handleVendasPrecos(whatsapp, texto, conversa);
+      break;
+    case 'VENDAS_FECHAMENTO':
+      await handleVendasFechamento(whatsapp, conversa);
+      break;
+    // ─── Fluxo legado ────────────────────────────────────────
     case 'RECEPCAO':
       await handleRecepcao(whatsapp, texto, conversa);
       break;
@@ -131,16 +151,87 @@ export async function processarMensagem(whatsapp: string, texto: string): Promis
       await handleFormsPreconsulta(whatsapp, texto, conversa);
       break;
     default:
-      await enviarWelcome(whatsapp);
+      await enviarBoasVindas(whatsapp);
   }
 }
 
 // ─── Handlers por estado ──────────────────────────────────────
 
-async function enviarWelcome(whatsapp: string) {
-  await enviarWhatsApp(whatsapp, TEMPLATES.RECEPCAO());
-  await atualizarEstado(whatsapp, 'RECEPCAO');
+async function enviarBoasVindas(whatsapp: string) {
+  await enviarWhatsApp(whatsapp, TEMPLATES.VENDAS_SAUDACAO());
+  await atualizarEstado(whatsapp, 'VENDAS_SAUDACAO');
 }
+
+// ─── Fluxo de vendas premium ─────────────────────────────────
+
+async function handleVendasSaudacao(whatsapp: string, texto: string, conversa: ConversaBot) {
+  const nome = texto.trim().split(' ')[0];
+  if (!nome) {
+    await enviarWhatsApp(whatsapp, `Não consegui pegar seu nome 😅 Pode me dizer como posso te chamar?`);
+    return;
+  }
+  await atualizarContexto(whatsapp, { ...conversa.contexto, nome });
+  await atualizarEstado(whatsapp, 'VENDAS_APRESENTACAO');
+  await enviarWhatsApp(whatsapp, TEMPLATES.VENDAS_APRESENTACAO(nome));
+}
+
+async function handleVendasApresentacao(whatsapp: string, conversa: ConversaBot) {
+  await atualizarEstado(whatsapp, 'VENDAS_BENEFICIOS_1');
+  await enviarWhatsApp(whatsapp, TEMPLATES.VENDAS_BENEFICIOS_1());
+}
+
+async function handleVendasBeneficios1(whatsapp: string) {
+  await atualizarEstado(whatsapp, 'VENDAS_BENEFICIOS_2');
+  await enviarWhatsApp(whatsapp, TEMPLATES.VENDAS_BENEFICIOS_2());
+}
+
+async function handleVendasBeneficios2(whatsapp: string) {
+  await atualizarEstado(whatsapp, 'VENDAS_BENEFICIOS_3');
+  await enviarWhatsApp(whatsapp, TEMPLATES.VENDAS_BENEFICIOS_3());
+}
+
+async function handleVendasBeneficios3(whatsapp: string, conversa: ConversaBot) {
+  const nome = (conversa.contexto?.nome as string) ?? 'você';
+  await atualizarEstado(whatsapp, 'VENDAS_PRECOS');
+  await enviarWhatsApp(whatsapp, TEMPLATES.VENDAS_PRECOS(nome));
+}
+
+async function handleVendasPrecos(whatsapp: string, texto: string, conversa: ConversaBot) {
+  const nome = (conversa.contexto?.nome as string) ?? 'você';
+  const textoNorm = normalizarTexto(texto);
+
+  let meses: string | null = null;
+  if (textoNorm.includes('12') || textoNorm.includes('doze')) meses = '12';
+  else if (textoNorm.includes('6') || textoNorm.includes('seis')) meses = '6';
+  else if (textoNorm.includes('3') || textoNorm.includes('tres')) meses = '3';
+
+  if (!meses) {
+    await enviarWhatsApp(whatsapp, `Pode escolher uma das opções: *3*, *6* ou *12* meses 😊`);
+    return;
+  }
+
+  await atualizarContexto(whatsapp, { ...conversa.contexto, plano_meses: meses });
+  await atualizarEstado(whatsapp, 'VENDAS_FECHAMENTO');
+  await enviarWhatsApp(whatsapp, TEMPLATES.VENDAS_FECHAMENTO(nome, meses));
+
+  const nutriWpp = process.env.NUTRICIONISTA_WHATSAPP;
+  if (nutriWpp) {
+    await enviarWhatsApp(
+      nutriWpp,
+      `💰 *INTERESSE EM CONTRATAÇÃO*\n\nWhatsApp: ${whatsapp}\nNome: ${nome}\nPlano: ${meses} meses`
+    );
+  }
+}
+
+async function handleVendasFechamento(whatsapp: string, conversa: ConversaBot) {
+  const nutriWpp = process.env.NUTRICIONISTA_WHATSAPP ?? '';
+  await enviarWhatsApp(
+    whatsapp,
+    `Qualquer dúvida adicional, entre em contato diretamente com a nutricionista:\n\n📞 *${nutriWpp}*\n\nEla vai adorar te receber! 😊`
+  );
+}
+
+// ─── Fluxo legado ────────────────────────────────────────────
 
 async function handleRecepcao(whatsapp: string, texto: string, conversa: ConversaBot) {
   const opcoesObjetivo: Record<string, string> = {

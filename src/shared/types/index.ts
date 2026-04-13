@@ -161,11 +161,20 @@ export type EstadoBot =
   | 'QUALIFICACAO'
   | 'APRESENTACAO_PLANOS'
   | 'AGENDAMENTO'
-  | 'FORMS_PRECONSULTA';
+  | 'FORMS_PRECONSULTA'
+  | 'VENDAS_SAUDACAO'
+  | 'VENDAS_APRESENTACAO'
+  | 'VENDAS_BENEFICIOS_1'
+  | 'VENDAS_BENEFICIOS_2'
+  | 'VENDAS_BENEFICIOS_3'
+  | 'VENDAS_PRECOS'
+  | 'VENDAS_FECHAMENTO';
 
 export interface ContextoBot {
   objetivo?: string;
+  nome?: string;
   plano_interesse?: string;
+  plano_meses?: string;
   alergias?: string[];
   formato_preferido?: 'online' | 'presencial';
   [key: string]: unknown;

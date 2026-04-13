@@ -100,4 +100,89 @@ Ou se preferir, pode digitar:
 • "planos" para ver os planos disponíveis
 • "agendar" para marcar uma consulta
 • "dúvida" para falar com a nutricionista`,
+
+  // ─── Fluxo de vendas premium ──────────────────────────────────
+
+  VENDAS_SAUDACAO: () =>
+    `Olá! 👋 Que bom ter você aqui!
+
+Sou o assistente da ${process.env.NUTRICIONISTA_NOME ?? 'nutricionista'} e estou aqui para te ajudar a dar um passo importante na sua saúde e bem-estar.
+
+Antes de tudo, qual é o seu nome? 😊`,
+
+  VENDAS_APRESENTACAO: (nome: string) =>
+    `Que nome lindo, ${nome}! 😄
+
+Deixa eu te apresentar o nosso *Acompanhamento Nutricional Premium*:
+
+_"O plano mais completo e individualizado para quem busca resultados reais e sustentáveis. Aqui você não recebe apenas um plano alimentar, mas um acompanhamento completo, com ajustes constantes e suporte próximo durante todo o processo."_
+
+Quer saber mais sobre o que está incluído? 🌿`,
+
+  VENDAS_BENEFICIOS_1: () =>
+    `Vou te contar como funciona o acompanhamento 💪
+
+✅ Plano alimentar 100% individualizado para você
+✅ Consultas presenciais ou on-line a cada 30 dias
+✅ Avaliação física completa
+✅ Check-in semanal para acompanhar sua evolução
+✅ Ajustes contínuos conforme você for progredindo
+✅ Suporte direto via WhatsApp sempre que precisar
+
+Isso é só o começo! Temos também ferramentas exclusivas que facilitam muito o processo do dia a dia. Posso te contar? 🛠️`,
+
+  VENDAS_BENEFICIOS_2: () =>
+    `Trabalhamos com ferramentas que fazem toda a diferença 📱
+
+📋 *WebDiet* — seu plano alimentar sempre atualizado e acessível no celular
+📊 *Wellts* — check-ins organizados e acompanhados de perto
+🏃 *Move Health* — acompanhamento dos seus hábitos no dia a dia
+🎯 *iMetas* — definição e acompanhamento das suas metas pessoais
+
+Tudo integrado para que você e a nutricionista tenham uma visão completa da sua jornada.
+
+E ainda tem alguns benefícios exclusivos que nossos pacientes adoram muito 🎁 Posso te contar?`,
+
+  VENDAS_BENEFICIOS_3: () =>
+    `Além de tudo que já te falei, você também tem acesso a 🌟
+
+👥 *Grupo exclusivo de pacientes* — troca de experiências, receitas e motivação com outras pessoas que estão no mesmo processo que você
+🎁 *Garrafinha personalizada* — um presente nosso pra você começar a jornada com o pé direito!
+
+Que tal eu te contar sobre o investimento? 💬`,
+
+  VENDAS_PRECOS: (nome: string) =>
+    `${nome}, temos três opções de duração para o Acompanhamento Premium 👇
+
+⏱️ *3 meses:* 3x de R$ 380
+⏱️ *6 meses:* 6x de R$ 350
+⏱️ *12 meses:* 12x de R$ 330
+
+💳 *Formas de pagamento:*
+• Pix ou dinheiro: à vista (valor integral do plano)
+• Cartão de crédito: parcelado conforme os meses escolhidos
+
+Quanto mais longo o plano, menor o valor mensal — e maiores os resultados! 😊
+
+Qual das opções faz mais sentido para você? Digite *3*, *6* ou *12* meses.`,
+
+  VENDAS_FECHAMENTO: (nome: string, meses: string) =>
+    `Excelente escolha, ${nome}! 🌟
+
+O plano de *${meses} meses* é perfeito para construir resultados reais e duradouros.
+
+Para dar início ao seu acompanhamento, entre em contato diretamente com a nutricionista — ela vai te orientar sobre os próximos passos: pagamento, agendamento da primeira consulta e acesso às ferramentas 😊
+
+📞 *${process.env.NUTRICIONISTA_WHATSAPP ?? 'Em breve'}*
+
+Estamos muito animados em ter você nessa jornada! Qualquer dúvida, é só chamar aqui 💪`,
+
+  VENDAS_FORA_ESCOPO: () =>
+    `Essa é uma ótima dúvida, mas está fora do que posso te responder por aqui 😊
+
+A melhor pessoa para te ajudar com isso é a própria nutricionista! Entra em contato com ela diretamente:
+
+📞 *${process.env.NUTRICIONISTA_WHATSAPP ?? 'Em breve'}*
+
+Posso te ajudar com mais alguma coisa sobre o Acompanhamento Premium?`,
 };
