@@ -53,13 +53,23 @@ Aqui você não recebe só um papel com dieta. Você tem um acompanhamento de ve
 🎁 *Bônus especiais:*
 ✔ Acesso ao grupo exclusivo de pacientes
 ✔ Garrafinha personalizada`,
-    APRESENTACAO_PLANOS_VALOR: () => `E agora a parte que todo mundo quer saber 😄
+    APRESENTACAO_PLANOS_VALOR: () => {
+        // Preços configuráveis: defina as vars sem cifrão, ex: PLANO_3MESES="3x de R 380"
+        // O cifrão é adicionado aqui para evitar problemas de shell expansion no Railway
+        const raw3 = process.env.PLANO_3MESES ?? '3x de R$380';
+        const raw6 = process.env.PLANO_6MESES ?? '6x de R$350';
+        const raw12 = process.env.PLANO_12MESES ?? '12x de R$330';
+        // Se o valor veio truncado (ex: "3x de R" sem o valor), usa o fallback hardcoded
+        const p3 = raw3.length > 8 ? raw3 : '3x de R$380';
+        const p6 = raw6.length > 8 ? raw6 : '6x de R$350';
+        const p12 = raw12.length > 8 ? raw12 : '12x de R$330';
+        return `E agora a parte que todo mundo quer saber 😄
 
 💰 *Investimento no Acompanhamento Premium:*
 
-📆 *3 meses* → ${process.env.PLANO_3MESES ?? '3x de R$380'}
-📆 *6 meses* → ${process.env.PLANO_6MESES ?? '6x de R$350'}
-📆 *12 meses* → ${process.env.PLANO_12MESES ?? '12x de R$330'}
+📆 *3 meses* → ${p3}
+📆 *6 meses* → ${p6}
+📆 *12 meses* → ${p12}
 
 💳 *Formas de pagamento:*
 • Pix ou dinheiro — valor integral à vista
@@ -67,7 +77,8 @@ Aqui você não recebe só um papel com dieta. Você tem um acompanhamento de ve
 
 _Quanto mais tempo de compromisso, melhor o valor e melhores os resultados também!_
 
-Qual período faz mais sentido pra você agora? Se quiser, posso já te agendar uma consulta pra começarmos! 🗓`,
+Qual período faz mais sentido pra você agora? Se quiser, posso já te agendar uma consulta pra começarmos! 🗓`;
+    },
     // mantido para compatibilidade
     APRESENTACAO_PLANOS: () => `Quer conhecer o Acompanhamento Premium? É só digitar *"planos"* que te mostro tudo! 😊`,
     AGENDAMENTO: (slots) => {
@@ -132,6 +143,14 @@ Quer ver os planos disponíveis? É só digitar *"planos"* 📋`,
 Ou se preferir, pode digitar:
 • *"planos"* — ver o Acompanhamento Premium e valores
 • *"agendar"* — marcar uma consulta
-• *"dúvida"* — falar diretamente com o nutricionista`,
+• *"secretaria"* — falar diretamente com nossa equipe`,
+    FALAR_SECRETARIA: () => `Claro! Vou te conectar com nossa secretaria agora mesmo 😊
+
+📞 *Atendimento humano:*
+WhatsApp: ${process.env.SECRETARIA_WHATSAPP ?? process.env.NUTRICIONISTA_WHATSAPP ?? '+5543991622448'}
+
+Nossa equipe está disponível de *segunda a sexta, das 8h às 18h*, e aos sábados das *8h às 12h*.
+
+_Fique à vontade para falar diretamente com a gente! 💚_`,
 };
 //# sourceMappingURL=templates.js.map

@@ -15,5 +15,6 @@ export declare const TEMPLATES: {
     URGENTE: (slots: string) => string;
     ONLINE_CONFIRMADO: () => string;
     NAO_ENTENDEU: () => string;
+    FALAR_SECRETARIA: () => string;
 };
 //# sourceMappingURL=templates.d.ts.map

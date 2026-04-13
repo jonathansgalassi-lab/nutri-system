@@ -69,6 +69,12 @@ export const GATILHOS: Gatilho[] = [
       await iniciarAgendamento(whatsapp);
     },
   },
+  {
+    palavras: ['secretaria', 'atendente', 'humano', 'pessoa', 'falar com alguem', 'falar com alguém', 'atendimento humano', 'equipe'],
+    handler: async (whatsapp) => {
+      await enviarWhatsApp(whatsapp, TEMPLATES.FALAR_SECRETARIA());
+    },
+  },
 ];
 
 // ─── Funções de estado ────────────────────────────────────────
@@ -291,6 +297,6 @@ async function handleFormsPreconsulta(whatsapp: string, _texto: string, _convers
   const linkForm = `${baseUrl}/preconsulta?wpp=${encodeURIComponent(whatsapp)}`;
   await enviarWhatsApp(
     whatsapp,
-    `Aqui está o link do formulário novamente:\n\n${linkForm}\n\nQualquer dúvida é só chamar! 😊`
+    `Aqui está o link do formulário novamente:\n\n${linkForm}\n\nSe precisar de mais alguma coisa, pode digitar:\n• *"secretaria"* — falar com nossa equipe\n• *"agendar"* — ver horários disponíveis\n\nQualquer dúvida é só chamar! 😊`
   );
 }

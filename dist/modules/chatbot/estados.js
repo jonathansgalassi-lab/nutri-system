@@ -65,6 +65,12 @@ exports.GATILHOS = [
             await iniciarAgendamento(whatsapp);
         },
     },
+    {
+        palavras: ['secretaria', 'atendente', 'humano', 'pessoa', 'falar com alguem', 'falar com alguém', 'atendimento humano', 'equipe'],
+        handler: async (whatsapp) => {
+            await (0, twilio_1.enviarWhatsApp)(whatsapp, templates_1.TEMPLATES.FALAR_SECRETARIA());
+        },
+    },
 ];
 // ─── Funções de estado ────────────────────────────────────────
 async function buscarOuCriarConversa(whatsapp) {
@@ -226,6 +232,6 @@ async function handleAgendamento(whatsapp, texto, conversa) {
 async function handleFormsPreconsulta(whatsapp, _texto, _conversa) {
     const baseUrl = process.env.BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
     const linkForm = `${baseUrl}/preconsulta?wpp=${encodeURIComponent(whatsapp)}`;
-    await (0, twilio_1.enviarWhatsApp)(whatsapp, `Aqui está o link do formulário novamente:\n\n${linkForm}\n\nQualquer dúvida é só chamar! 😊`);
+    await (0, twilio_1.enviarWhatsApp)(whatsapp, `Aqui está o link do formulário novamente:\n\n${linkForm}\n\nSe precisar de mais alguma coisa, pode digitar:\n• *"secretaria"* — falar com nossa equipe\n• *"agendar"* — ver horários disponíveis\n\nQualquer dúvida é só chamar! 😊`);
 }
 //# sourceMappingURL=estados.js.map
