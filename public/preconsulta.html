@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pré-consulta — Avaliação Nutricional</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --verde: #2d9b6e;
+      --verde-claro: #e8f7f1;
+      --cinza: #f5f5f5;
+      --texto: #222;
+      --borda: #ddd;
+      --erro: #e53e3e;
+      --raio: 10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--cinza);
+      color: var(--texto);
+      min-height: 100vh;
+      padding: 0 0 40px;
+    }
+
+    header {
+      background: var(--verde);
+      color: white;
+      padding: 24px 20px 20px;
+      text-align: center;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; }
+    header p  { font-size: 0.9rem; opacity: 0.85; margin-top: 4px; }
+
+    .progresso {
+      display: flex;
+      background: white;
+      border-bottom: 1px solid var(--borda);
+      overflow-x: auto;
+    }
+    .progresso-item {
+      flex: 1;
+      text-align: center;
+      padding: 10px 4px;
+      font-size: 0.7rem;
+      color: #999;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .progresso-item.ativo { color: var(--verde); border-color: var(--verde); font-weight: 600; }
+    .progresso-item.concluido { color: var(--verde); }
+
+    .secao {
+      display: none;
+      max-width: 600px;
+      margin: 24px auto 0;
+      padding: 0 16px;
+    }
+    .secao.ativa { display: block; }
+
+    .card {
+      background: white;
+      border-radius: var(--raio);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--verde);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .campo { margin-bottom: 16px; }
+    .campo label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .campo label .obrigatorio { color: var(--erro); }
+    .campo input,
+    .campo select,
+    .campo textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--borda);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      background: white;
+      transition: border-color 0.2s;
+      appearance: none;
+    }
+    .campo input:focus,
+    .campo select:focus,
+    .campo textarea:focus {
+      outline: none;
+      border-color: var(--verde);
+    }
+    .campo textarea { min-height: 80px; resize: vertical; }
+    .campo.erro input,
+    .campo.erro select,
+    .campo.erro textarea { border-color: var(--erro); }
+    .msg-erro { font-size: 0.78rem; color: var(--erro); margin-top: 4px; }
+
+    .linha-dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .checkboxes { display: flex; flex-wrap: wrap; gap: 10px; }
+    .checkboxes label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 400;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .checkboxes input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--verde);
+      flex-shrink: 0;
+    }
+
+    .navegacao {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .btn {
+      flex: 1;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:active { opacity: 0.8; }
+    .btn-primario { background: var(--verde); color: white; }
+    .btn-secundario { background: var(--borda); color: var(--texto); flex: 0.5; }
+
+    .sucesso {
+      display: none;
+      text-align: center;
+      max-width: 500px;
+      margin: 60px auto;
+      padding: 0 20px;
+    }
+    .sucesso .icone { font-size: 4rem; }
+    .sucesso h2 { font-size: 1.5rem; margin: 16px 0 8px; }
+    .sucesso p { color: #666; line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📋 Formulário de Pré-consulta</h1>
+  <p>Preencha antes da sua primeira consulta</p>
+</header>
+
+<div class="progresso" id="progresso">
+  <div class="progresso-item ativo" data-secao="0">📝 Básico</div>
+  <div class="progresso-item" data-secao="1">🍽️ Hábitos</div>
+  <div class="progresso-item" data-secao="2">🏥 Saúde</div>
+  <div class="progresso-item" data-secao="3">💭 Contexto</div>
+</div>
+
+<form id="form" novalidate>
+
+  <!-- SEÇÃO 0 — DADOS BÁSICOS -->
+  <div class="secao ativa" id="secao-0">
+    <div class="card">
+      <h2>📝 Dados Básicos</h2>
+
+      <div class="campo" id="c-nome">
+        <label>Nome completo <span class="obrigatorio">*</span></label>
+        <input type="text" name="nome" placeholder="Seu nome completo" autocomplete="name" />
+        <div class="msg-erro"></div>
+      </div>
+
+      <div class="campo" id="c-whatsapp">
+        <label>WhatsApp <span class="obrigatorio">*</span></label>
+        <input type="tel" name="whatsapp" placeholder="(11) 99999-9999" autocomplete="tel" />
+        <div class="msg-erro"></div>
+      </div>
+
+      <div class="campo" id="c-email">
+        <label>E-mail</label>
+        <input type="email" name="email" placeholder="seu@email.com" autocomplete="email" />
+        <div class="msg-erro"></div>
+      </div>
+
+      <div class="linha-dupla">
+        <div class="campo" id="c-data_nascimento">
+          <label>Data de nascimento <span class="obrigatorio">*</span></label>
+          <input type="date" name="data_nascimento" />
+          <div class="msg-erro"></div>
+        </div>
+        <div class="campo" id="c-sexo">
+          <label>Sexo <span class="obrigatorio">*</span></label>
+          <select name="sexo">
+            <option value="">Selecione</option>
+            <option value="F">Feminino</option>
+            <option value="M">Masculino</option>
+          </select>
+          <div class="msg-erro"></div>
+        </div>
+      </div>
+
+      <div class="linha-dupla">
+        <div class="campo" id="c-peso">
+          <label>Peso atual (kg) <span class="obrigatorio">*</span></label>
+          <input type="number" name="peso" step="0.1" min="20" max="300" placeholder="70.0" />
+          <div class="msg-erro"></div>
+        </div>
+        <div class="campo" id="c-altura">
+          <label>Altura (cm) <span class="obrigatorio">*</span></label>
+          <input type="number" name="altura" step="1" min="100" max="250" placeholder="170" />
+          <div class="msg-erro"></div>
+        </div>
+      </div>
+
+      <div class="campo" id="c-objetivo">
+        <label>Objetivo principal <span class="obrigatorio">*</span></label>
+        <select name="objetivo">
+          <option value="">Selecione</option>
+          <option value="Emagrecimento/Definição">Emagrecimento / Definição</option>
+          <option value="Ganho de massa">Ganho de massa muscular</option>
+          <option value="Saúde geral">Saúde geral e bem-estar</option>
+          <option value="Energia e performance">Energia e performance</option>
+          <option value="Condição específica">Condição específica (diabetes, pressão, etc)</option>
+          <option value="Outros">Outros</option>
+        </select>
+        <div class="msg-erro"></div>
+      </div>
+    </div>
+    <div class="navegacao">
+      <button type="button" class="btn btn-primario" onclick="avancar(0)">Próximo →</button>
+    </div>
+  </div>
+
+  <!-- SEÇÃO 1 — HÁBITOS ALIMENTARES -->
+  <div class="secao" id="secao-1">
+    <div class="card">
+      <h2>🍽️ Hábitos Alimentares</h2>
+
+      <div class="campo" id="c-refeicoes_por_dia">
+        <label>Quantas refeições por dia? <span class="obrigatorio">*</span></label>
+        <select name="refeicoes_por_dia">
+          <option value="">Selecione</option>
+          <option value="2">2 refeições</option>
+          <option value="3">3 refeições</option>
+          <option value="4">4 refeições</option>
+          <option value="5">5 refeições</option>
+          <option value="6">6+ refeições</option>
+        </select>
+        <div class="msg-erro"></div>
+      </div>
+
+      <div class="campo">
+        <label>Alimentos que você ama 😋</label>
+        <textarea name="alimentos_que_gosta" placeholder="Ex: frango, arroz, frutas, massa..."></textarea>
+      </div>
+
+      <div class="campo">
+        <label>Alimentos que não gosta ou evita 🙅</label>
+        <textarea name="alimentos_que_nao_gosta" placeholder="Ex: fígado, chuchu, coentro..."></textarea>
+      </div>
+
+      <div class="campo" id="c-come_fora">
+        <label>Come fora de casa? <span class="obrigatorio">*</span></label>
+        <select name="come_fora">
+          <option value="">Selecione</option>
+          <option value="nunca">Nunca / Raramente</option>
+          <option value="1-2x/sem">1-2x por semana</option>
+          <option value="3-4x/sem">3-4x por semana</option>
+          <option value="diariamente">Diariamente</option>
+        </select>
+        <div class="msg-erro"></div>
+      </div>
+
+      <div class="campo">
+        <label>Onde costuma comer fora?</label>
+        <textarea name="onde_come_fora" placeholder="Ex: restaurante self-service, lanchonete, em casa de familiar..."></textarea>
+      </div>
+    </div>
+    <div class="navegacao">
+      <button type="button" class="btn btn-secundario" onclick="voltar(1)">← Voltar</button>
+      <button type="button" class="btn btn-primario" onclick="avancar(1)">Próximo →</button>
+    </div>
+  </div>
+
+  <!-- SEÇÃO 2 — SAÚDE -->
+  <div class="secao" id="secao-2">
+    <div class="card">
+      <h2>🏥 Saúde</h2>
+
+      <div class="campo">
+        <label>Alergias ou intolerâncias alimentares</label>
+        <textarea name="alergias" placeholder="Ex: lactose, glúten, amendoim, frutos do mar..."></textarea>
+      </div>
+
+      <div class="campo">
+        <label>Medicamentos em uso</label>
+        <textarea name="medicamentos" placeholder="Ex: metformina, losartana, anticoncepcional..."></textarea>
+      </div>
+
+      <div class="campo">
+        <label>Histórico familiar relevante</label>
+        <div class="checkboxes">
+          <label><input type="checkbox" name="historico_familiar" value="diabetes" /> Diabetes</label>
+          <label><input type="checkbox" name="historico_familiar" value="hipertensão" /> Hipertensão</label>
+          <label><input type="checkbox" name="historico_familiar" value="colesterol" /> Colesterol alto</label>
+          <label><input type="checkbox" name="historico_familiar" value="obesidade" /> Obesidade</label>
+          <label><input type="checkbox" name="historico_familiar" value="doença cardíaca" /> Doença cardíaca</label>
+          <label><input type="checkbox" name="historico_familiar" value="outros" /> Outros</label>
+        </div>
+      </div>
+
+      <div class="campo" id="c-pratica_exercicio">
+        <label>Pratica exercício físico? <span class="obrigatorio">*</span></label>
+        <select name="pratica_exercicio">
+          <option value="">Selecione</option>
+          <option value="não">Não pratico</option>
+          <option value="1-2x/sem">1-2x por semana</option>
+          <option value="3-4x/sem">3-4x por semana</option>
+          <option value="5+/sem">5+ vezes por semana</option>
+        </select>
+        <div class="msg-erro"></div>
+      </div>
+
+      <div class="campo">
+        <label>Qual tipo de exercício?</label>
+        <textarea name="tipo_exercicio" placeholder="Ex: musculação, caminhada, corrida, natação..."></textarea>
+      </div>
+    </div>
+    <div class="navegacao">
+      <button type="button" class="btn btn-secundario" onclick="voltar(2)">← Voltar</button>
+      <button type="button" class="btn btn-primario" onclick="avancar(2)">Próximo →</button>
+    </div>
+  </div>
+
+  <!-- SEÇÃO 3 — CONTEXTO -->
+  <div class="secao" id="secao-3">
+    <div class="card">
+      <h2>💭 Contexto</h2>
+
+      <div class="campo">
+        <label>Principais dificuldades com alimentação</label>
+        <textarea name="dificuldades_alimentacao" placeholder="Ex: sem tempo para cozinhar, compulsão à noite, come muito fora..."></textarea>
+      </div>
+
+      <div class="campo">
+        <label>Já fez dieta antes? Qual resultado?</label>
+        <textarea name="dietas_anteriores" placeholder="Ex: já tentei low-carb, perdi 5kg mas voltei tudo..."></textarea>
+      </div>
+
+      <div class="campo">
+        <label>O que você espera desta consultoria?</label>
+        <textarea name="expectativas" placeholder="Ex: quero perder 10kg em 4 meses mantendo energia no trabalho..."></textarea>
+      </div>
+    </div>
+    <div class="navegacao">
+      <button type="button" class="btn btn-secundario" onclick="voltar(3)">← Voltar</button>
+      <button type="button" class="btn btn-primario" id="btn-enviar" onclick="enviar()">Enviar formulário ✅</button>
+    </div>
+  </div>
+
+</form>
+
+<!-- TELA DE SUCESSO -->
+<div class="sucesso" id="sucesso">
+  <div class="icone">✅</div>
+  <h2>Formulário enviado!</h2>
+  <p>Suas informações foram recebidas com sucesso.<br>Sua nutricionista já está com tudo para personalizar seu atendimento. 🌿</p>
+  <p style="margin-top:16px; font-size: 0.85rem; color: #999;">Você pode fechar esta página.</p>
+</div>
+
+<script>
+  // Pré-preenche WhatsApp da URL
+  const params = new URLSearchParams(location.search);
+  if (params.get('wpp')) {
+    const wpp = params.get('wpp').replace(/\D/g, '');
+    const formatted = wpp.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    document.querySelector('[name="whatsapp"]').value = formatted;
+  }
+
+  let secaoAtual = 0;
+
+  function mostrarSecao(idx) {
+    document.querySelectorAll('.secao').forEach((s, i) => {
+      s.classList.toggle('ativa', i === idx);
+    });
+    document.querySelectorAll('.progresso-item').forEach((p, i) => {
+      p.classList.toggle('ativo', i === idx);
+      p.classList.toggle('concluido', i < idx);
+    });
+    secaoAtual = idx;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function validarSecao(idx) {
+    const obrigatorios = {
+      0: ['nome', 'whatsapp', 'data_nascimento', 'sexo', 'peso', 'altura', 'objetivo'],
+      1: ['refeicoes_por_dia', 'come_fora'],
+      2: ['pratica_exercicio'],
+      3: [],
+    };
+    let valido = true;
+    for (const campo of (obrigatorios[idx] || [])) {
+      const el = document.querySelector(`[name="${campo}"]`);
+      const wrapper = document.getElementById(`c-${campo}`);
+      if (!el || !wrapper) continue;
+      const val = el.value.trim();
+      if (!val) {
+        wrapper.classList.add('erro');
+        wrapper.querySelector('.msg-erro').textContent = 'Campo obrigatório';
+        valido = false;
+      } else {
+        wrapper.classList.remove('erro');
+        wrapper.querySelector('.msg-erro').textContent = '';
+      }
+    }
+    // Validações especiais
+    if (idx === 0) {
+      const peso = parseFloat(document.querySelector('[name="peso"]').value);
+      const altura = parseFloat(document.querySelector('[name="altura"]').value);
+      if (peso && (peso < 20 || peso > 300)) {
+        const w = document.getElementById('c-peso');
+        w.classList.add('erro');
+        w.querySelector('.msg-erro').textContent = 'Peso deve ser entre 20 e 300 kg';
+        valido = false;
+      }
+      if (altura && (altura < 100 || altura > 250)) {
+        const w = document.getElementById('c-altura');
+        w.classList.add('erro');
+        w.querySelector('.msg-erro').textContent = 'Altura deve ser entre 100 e 250 cm';
+        valido = false;
+      }
+    }
+    return valido;
+  }
+
+  function avancar(idx) {
+    if (!validarSecao(idx)) return;
+    mostrarSecao(idx + 1);
+  }
+
+  function voltar(idx) {
+    mostrarSecao(idx - 1);
+  }
+
+  async function enviar() {
+    if (!validarSecao(3)) return;
+
+    const btn = document.getElementById('btn-enviar');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    const fd = new FormData(document.getElementById('form'));
+    const historico = [...document.querySelectorAll('[name="historico_familiar"]:checked')].map(c => c.value);
+
+    const payload = {
+      nome: fd.get('nome'),
+      whatsapp: (fd.get('whatsapp') || '').replace(/\D/g, ''),
+      email: fd.get('email') || '',
+      data_nascimento: fd.get('data_nascimento'),
+      sexo: fd.get('sexo'),
+      peso: parseFloat(fd.get('peso')),
+      altura: parseFloat(fd.get('altura')),
+      objetivo: fd.get('objetivo'),
+      refeicoes_por_dia: parseInt(fd.get('refeicoes_por_dia')),
+      alimentos_que_gosta: fd.get('alimentos_que_gosta') || '',
+      alimentos_que_nao_gosta: fd.get('alimentos_que_nao_gosta') || '',
+      come_fora: fd.get('come_fora'),
+      onde_come_fora: fd.get('onde_come_fora') || '',
+      alergias: fd.get('alergias') || '',
+      medicamentos: fd.get('medicamentos') || '',
+      historico_familiar: historico,
+      pratica_exercicio: fd.get('pratica_exercicio'),
+      tipo_exercicio: fd.get('tipo_exercicio') || '',
+      dificuldades_alimentacao: fd.get('dificuldades_alimentacao') || '',
+      dietas_anteriores: fd.get('dietas_anteriores') || '',
+      expectativas: fd.get('expectativas') || '',
+    };
+
+    try {
+      const res = await fetch('/api/forms/preconsulta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        document.getElementById('form').style.display = 'none';
+        document.getElementById('sucesso').style.display = 'block';
+        document.querySelector('.progresso').style.display = 'none';
+      } else {
+        const data = await res.json();
+        alert('Erro ao enviar: ' + JSON.stringify(data.detalhes || data.error));
+        btn.disabled = false;
+        btn.textContent = 'Enviar formulário ✅';
+      }
+    } catch (e) {
+      alert('Erro de conexão. Verifique sua internet e tente novamente.');
+      btn.disabled = false;
+      btn.textContent = 'Enviar formulário ✅';
+    }
+  }
+</script>
+</body>
+</html>
