@@ -2,14 +2,14 @@ import { interpolar } from '../../shared/utils';
 
 export const TEMPLATES = {
   RECEPCAO: () =>
-    `Oi! 👋 Que legal você estar aqui! Sou o assistente da ${process.env.NUTRICIONISTA_NOME ?? 'nutricionista'}, nutricionista clínica. Estou aqui para ajudar!
+    `Oi! 👋 Que legal você estar aqui! Sou o assistente do Nutr. ${process.env.NUTRICIONISTA_NOME ?? 'Jonathan Galassi'}, nutricionista clínico. Estou aqui para te ajudar! 🥦
 
 Me conta: qual é seu principal objetivo agora?
 1️⃣ Emagrecimento/Definição
-2️⃣ Ganho de massa
-3️⃣ Saúde geral
+2️⃣ Ganho de massa muscular
+3️⃣ Saúde geral e qualidade de vida
 4️⃣ Energia e performance
-5️⃣ Condição específica (diabetes, pressão, etc)
+5️⃣ Condição específica (diabetes, pressão, colesterol…)
 6️⃣ Outros`,
 
   QUALIFICACAO: (nome: string) =>
@@ -22,24 +22,31 @@ Você já faz algum acompanhamento nutricional atualmente?
 4️⃣ Tenho acompanhamento médico (passar detalhes)`,
 
   APRESENTACAO_PLANOS: () =>
-    `Temos 3 opções para te ajudar:
+    `⭐ *ACOMPANHAMENTO NUTRICIONAL PREMIUM*
 
-📋 *PLANO INICIAL* — R$ ${process.env.VALOR_PLANO_INICIAL ?? '???'}
-• 1 Consulta de 60min
-• Avaliação completa (antropometria, bioimpedância)
-• Plano básico 30 dias
+O método mais completo e individualizado para quem busca resultados reais e sustentáveis. Aqui você não recebe apenas um plano alimentar, mas um acompanhamento completo com ajustes constantes e suporte próximo.
 
-📈 *PLANO ACOMPANHAMENTO (3 meses)* — R$ ${process.env.VALOR_PLANO_ACOMPANHAMENTO ?? '???'}
-• Consulta Inicial + 3 Reavaliações
-• Plano personalizado ajustável
-• Acompanhamento semanal via chat
+✅ *O que está incluído:*
+✔ Plano alimentar 100% individualizado
+✔ Consultas presenciais ou on-line a cada 30 dias
+✔ Avaliação física completa
+✔ Check-in semanal
+✔ Ajustes contínuos conforme sua evolução
+✔ Suporte direto via WhatsApp
 
-⭐ *PLANO PREMIUM (6 meses)* — R$ ${process.env.VALOR_PLANO_PREMIUM ?? '???'}
-• Tudo do Acompanhamento
-• Suporte prioritário
-• Receitas customizadas
+🛠 *Ferramentas exclusivas:*
+✔ WebDiet • Wellts • Move Health • iMetas
 
-Qual faz mais sentido para você?`,
+🎁 *Bônus:* Grupo exclusivo de pacientes + Garrafinha personalizada
+
+💰 *Investimento:*
+• 3 meses: ${process.env.PLANO_3MESES ?? '3x de R$380'}
+• 6 meses: ${process.env.PLANO_6MESES ?? '6x de R$350'}
+• 12 meses: ${process.env.PLANO_12MESES ?? '12x de R$330'}
+
+💳 *Pagamento:* Pix/dinheiro à vista ou cartão parcelado
+
+Qual período faz mais sentido para você? 😊`,
 
   AGENDAMENTO: (slots: { dia: string; horas: string[] }[]) => {
     const linhas = slots.map((s, i) => `📅 ${s.dia}:\n• ${s.horas.join(' | ')}`);
@@ -57,10 +64,12 @@ Qual prefere? Responde com o número do horário (ex: "1")`;
 
 📅 Data: ${data}
 ⏰ Horário: ${hora}
-🏥 Local: ${local}
-📞 Contato: ${process.env.NUTRICIONISTA_WHATSAPP ?? ''}
+🏥 Local: ${local || (process.env.NUTRICIONISTA_ENDERECO ?? 'A confirmar')}
+📞 Contato: ${process.env.NUTRICIONISTA_WHATSAPP ?? '+5543991622448'}
 
-💡 Para aproveitar ao máximo sua consulta, preencha o formulário de pré-consulta: {LINK_FORM}`,
+💡 Para aproveitar ao máximo sua consulta, preencha o formulário de pré-avaliação: {LINK_FORM}
+
+_Até lá! Qualquer dúvida é só chamar aqui_ 😊`,
 
   FORMS_PRECONSULTA: (link: string) =>
     `📋 Antes da sua consulta, preencha o formulário de pré-avaliação:
