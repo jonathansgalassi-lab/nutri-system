@@ -201,6 +201,8 @@ async function inserirPacienteWebdiet(dados) {
         });
         await new Promise(r => setTimeout(r, 1000));
         console.log(`[webdiet] Anamnese criada para: ${dados.nome}`);
+        // ── 9. Cria prescrição alimentar com protocolo automático ──
+        await criarPrescricaoComProtocolo(page, dados);
         return true;
     }
     catch (err) {
@@ -209,6 +211,86 @@ async function inserirPacienteWebdiet(dados) {
     }
     finally {
         await browser.close();
+    }
+}
+// ─── Seleciona protocolo baseado nos dados da pré-consulta ────
+function selecionarProtocolo(dados) {
+    const objetivo = (dados.objetivo ?? '').toLowerCase();
+    const historico = (dados.historicoFamiliar ?? []).join(' ').toLowerCase();
+    const alergias = (dados.alergias ?? '').toLowerCase();
+    if (historico.includes('diabetes') || alergias.includes('diabetes'))
+        return 'Diabetes Tipo 2';
+    if (historico.includes('hipertens') || historico.includes('pressão'))
+        return 'Hipertensão arterial sistêmica (HAS)';
+    if (historico.includes('triglicérides') || historico.includes('triglicerides'))
+        return 'Triglicerídeos muito elevados (> 500mg/dL)';
+    if (historico.includes('síndrome metabólica') || historico.includes('sindrome metabolica'))
+        return 'Síndrome metabólica';
+    if (historico.includes('esteatose') || historico.includes('fígado'))
+        return 'Esteatose hepática não alcoólica';
+    if (objetivo.includes('emagrec') || objetivo.includes('perder peso') || objetivo.includes('defini'))
+        return 'Emagrecimento';
+    if (objetivo.includes('massa') || objetivo.includes('hipertrofia') || objetivo.includes('ganho'))
+        return 'Hipertrofia';
+    if (objetivo.includes('low carb'))
+        return 'Low-carb';
+    if (objetivo.includes('mediterr'))
+        return 'Mediterrâneo';
+    return 'Emagrecimento'; // padrão
+}
+async function criarPrescricaoComProtocolo(page, dados) {
+    try {
+        // Clica em "Planejamento alimentar" no menu lateral
+        await page.evaluate(() => {
+            const items = Array.from(document.querySelectorAll('*'));
+            const item = items.find(el => el.textContent?.trim() === 'Planejamento alimentar');
+            item?.click();
+        });
+        await new Promise(r => setTimeout(r, 1000));
+        // Clica em "nova prescrição alimentar"
+        await page.evaluate(() => {
+            const btns = Array.from(document.querySelectorAll('*'));
+            const btn = btns.find(el => el.textContent?.trim() === 'nova prescrição alimentar');
+            btn?.click();
+        });
+        // Aguarda navegar para a página de edição da prescrição
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => { });
+        await new Promise(r => setTimeout(r, 1500));
+        // Clica em "protocolo nutricional"
+        await page.evaluate(() => {
+            const btns = Array.from(document.querySelectorAll('*'));
+            const btn = btns.find(el => el.textContent?.trim() === 'protocolo nutricional');
+            btn?.click();
+        });
+        await new Promise(r => setTimeout(r, 800));
+        // Clica em "Usar protocolo modelo"
+        await page.evaluate(() => {
+            const btns = Array.from(document.querySelectorAll('*'));
+            const btn = btns.find(el => el.textContent?.trim() === 'Usar protocolo modelo');
+            btn?.click();
+        });
+        await new Promise(r => setTimeout(r, 800));
+        // Seleciona o protocolo correto baseado nos dados
+        const protocolo = selecionarProtocolo(dados);
+        if (protocolo) {
+            await page.evaluate((nomeProtocolo) => {
+                const items = Array.from(document.querySelectorAll('li, [class*="item"]'));
+                const item = items.find(el => el.textContent?.trim() === nomeProtocolo);
+                item?.click();
+            }, protocolo);
+            await new Promise(r => setTimeout(r, 500));
+            // Confirma a seleção
+            await page.evaluate(() => {
+                const btns = Array.from(document.querySelectorAll('button, *'));
+                const btn = btns.find(el => el.textContent?.trim() === 'confirmar');
+                btn?.click();
+            });
+            await new Promise(r => setTimeout(r, 1000));
+            console.log(`[webdiet] Protocolo "${protocolo}" aplicado para: ${dados.nome}`);
+        }
+    }
+    catch (err) {
+        console.error('[webdiet] Erro ao criar prescrição:', err);
     }
 }
 //# sourceMappingURL=webdiet.js.map
