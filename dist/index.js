@@ -70,7 +70,7 @@ app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 // ── Reset conversa (apenas dev/admin) ─────────────────────────
-app.delete('/admin/reset-conversa/:numero', async (req, res) => {
+app.post('/admin/reset-conversa/:numero', async (req, res) => {
     const adminKey = req.headers['x-admin-key'];
     if (adminKey !== process.env.ADMIN_KEY) {
         res.status(401).json({ error: 'Não autorizado' });
