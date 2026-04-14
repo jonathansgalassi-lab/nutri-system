@@ -98,10 +98,8 @@ Até logo! 😊`);
             email: dados.email,
             dataNascimento: dados.data_nascimento,
             sexo: dados.sexo,
-            peso: dados.peso,
-            altura: dados.altura,
-            objetivo: dados.objetivo,
-            alergias: dados.alergias,
+            telefone: dados.whatsapp,
+            tags: dados.objetivo ? `objetivo: ${dados.objetivo}` : undefined,
         })
             .then(async () => {
             await (0, connection_1.query)(`UPDATE forms_preconsulta SET inserido_webdiet = TRUE, status = 'processado' WHERE id = $1`, [form.id]);

@@ -1,12 +1,12 @@
 export interface DadosPacienteWebdiet {
     nome: string;
-    email?: string;
-    dataNascimento?: string;
+    apelido?: string;
     sexo?: 'M' | 'F';
-    peso?: number;
-    altura?: number;
-    objetivo?: string;
-    alergias?: string;
+    dataNascimento?: string;
+    cpf?: string;
+    telefone?: string;
+    email?: string;
+    tags?: string;
 }
-export declare function inserirPacienteWebdiet(dados: DadosPacienteWebdiet): Promise<string>;
+export declare function inserirPacienteWebdiet(dados: DadosPacienteWebdiet): Promise<boolean>;
 //# sourceMappingURL=webdiet.d.ts.map
