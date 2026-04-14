@@ -96,10 +96,27 @@ Até logo! 😊`);
         (0, webdiet_1.inserirPacienteWebdiet)({
             nome: dados.nome,
             email: dados.email,
-            dataNascimento: dados.data_nascimento,
+            dataNascimento: dados.data_nascimento ? new Date(dados.data_nascimento).toLocaleDateString('pt-BR') : undefined,
             sexo: dados.sexo,
             telefone: dados.whatsapp,
             tags: dados.objetivo ? `objetivo: ${dados.objetivo}` : undefined,
+            // Dados completos para a anamnese
+            peso: dados.peso,
+            altura: dados.altura,
+            objetivo: dados.objetivo,
+            alergias: dados.alergias,
+            medicamentos: dados.medicamentos,
+            historicoFamiliar: dados.historico_familiar,
+            praticaExercicio: dados.pratica_exercicio,
+            tipoExercicio: dados.tipo_exercicio,
+            refeicoesPorDia: dados.refeicoes_por_dia,
+            alimentosQueGosta: dados.alimentos_que_gosta,
+            alimentosQueNaoGosta: dados.alimentos_que_nao_gosta,
+            comeFora: dados.come_fora,
+            ondeComeFora: dados.onde_come_fora,
+            dificuldadesAlimentacao: dados.dificuldades_alimentacao,
+            dietasAnteriores: dados.dietas_anteriores,
+            expectativas: dados.expectativas,
         })
             .then(async () => {
             await (0, connection_1.query)(`UPDATE forms_preconsulta SET inserido_webdiet = TRUE, status = 'processado' WHERE id = $1`, [form.id]);
