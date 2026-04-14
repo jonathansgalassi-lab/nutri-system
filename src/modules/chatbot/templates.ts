@@ -1,5 +1,7 @@
 import { interpolar } from '../../shared/utils';
 
+const RODAPE = `\n\n_💬 Prefere falar com alguém? Digite *secretaria* e te conectamos com nossa equipe!_`;
+
 export const TEMPLATES = {
   RECEPCAO: () =>
     `Olá! Tudo bem? 😊 Seja muito bem-vindo(a)!
@@ -15,7 +17,7 @@ Me conta uma coisa: qual é o seu principal objetivo agora?
 5️⃣ Condição específica (diabetes, pressão, colesterol…)
 6️⃣ Outro objetivo
 
-_Responde com o número da opção que mais combina com você_ 😉`,
+_Responde com o número da opção que mais combina com você_ 😉${RODAPE}`,
 
   QUALIFICACAO: (nome: string) =>
     `Que objetivo incrível, ${nome}! 💪 Fico feliz que você esteja buscando isso.
@@ -29,7 +31,7 @@ Você já fez algum acompanhamento nutricional antes?
 3️⃣ Estou com outro profissional, mas quero mudar
 4️⃣ Tenho acompanhamento médico em paralelo
 
-Pode falar à vontade, tá aqui sem julgamento! 🙂`,
+Pode falar à vontade, tá aqui sem julgamento! 🙂${RODAPE}`,
 
   APRESENTACAO_PLANOS_INFO: () =>
     `Perfeito! Então deixa eu te apresentar o que temos de melhor 🌟
@@ -56,7 +58,7 @@ Aqui você não recebe só um papel com dieta. Você tem um acompanhamento de ve
 
 🎁 *Bônus especiais:*
 ✔ Acesso ao grupo exclusivo de pacientes
-✔ Garrafinha personalizada`,
+✔ Garrafinha personalizada${RODAPE}`,
 
   APRESENTACAO_PLANOS_VALOR: () => {
     // Preços configuráveis: defina as vars sem cifrão, ex: PLANO_3MESES="3x de R 380"
@@ -82,7 +84,7 @@ Aqui você não recebe só um papel com dieta. Você tem um acompanhamento de ve
 
 _Quanto mais tempo de compromisso, melhor o valor e melhores os resultados também!_
 
-Qual período faz mais sentido pra você agora? Se quiser, posso já te agendar uma consulta pra começarmos! 🗓`;
+Qual período faz mais sentido pra você agora? Se quiser, posso já te agendar uma consulta pra começarmos! 🗓${RODAPE}`;
   },
 
   // mantido para compatibilidade
@@ -97,7 +99,7 @@ Esses são os horários disponíveis agora:
 
 ${linhas.join('\n\n')}
 
-Responde com o número do horário que você prefere (ex: *"1"*) e já deixamos confirmado! 😊`;
+Responde com o número do horário que você prefere (ex: *"1"*) e já deixamos confirmado! 😊${RODAPE}`;
   },
 
   CONFIRMACAO_AGENDAMENTO: (data: string, hora: string, local: string) =>
@@ -121,7 +123,7 @@ ${link}
 
 É bem rápido e faz toda a diferença no seu atendimento! Com ele eu já chego na consulta com muito mais informações sobre você 🎯
 
-_Pode preencher com calma, tá?_ 😊`,
+_Pode preencher com calma, tá?_ 😊${RODAPE}`,
 
   DEPOIMENTO: () =>
     `Que legal que você quer saber mais! 😊
