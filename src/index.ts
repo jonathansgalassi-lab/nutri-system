@@ -40,6 +40,19 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ── Reset conversa (apenas dev/admin) ─────────────────────────
+app.delete('/admin/reset-conversa/:numero', async (req, res) => {
+  const adminKey = req.headers['x-admin-key'];
+  if (adminKey !== process.env.ADMIN_KEY) {
+    res.status(401).json({ error: 'Não autorizado' });
+    return;
+  }
+  const { query } = await import('./database/connection');
+  const numero = decodeURIComponent(req.params.numero);
+  const result = await query('DELETE FROM conversas_bot WHERE whatsapp = $1', [numero]);
+  res.json({ ok: true, removido: (result as unknown as { rowCount: number }).rowCount > 0, numero });
+});
+
 // ── Rotas ──────────────────────────────────────────────────────
 app.use('/webhook/whatsapp', chatbotRouter);
 app.use('/webhook', financeiroRouter);               // /webhook/asaas
@@ -87,7 +100,7 @@ cron.schedule('0 9 1 * *', async () => {
 
 // ── Inicialização ──────────────────────────────────────────────
 async function start() {
-  await checkConnection();
+  // Inicia o servidor imediatamente — o healthcheck não vai falhar
   app.listen(PORT, () => {
     console.log(`\n🥦 Nutri-System rodando na porta ${PORT}`);
     console.log(`   Formulário:     http://localhost:${PORT}/preconsulta`);
@@ -95,6 +108,23 @@ async function start() {
     console.log(`   Webhook Asaas:  http://localhost:${PORT}/webhook/asaas`);
     console.log(`   Health:         http://localhost:${PORT}/health\n`);
   });
+
+  // Conecta ao banco com retries (não bloqueia o start)
+  let tentativas = 0;
+  const conectar = async () => {
+    try {
+      await checkConnection();
+    } catch (err) {
+      tentativas++;
+      if (tentativas < 5) {
+        console.warn(`[db] Tentativa ${tentativas} falhou. Retentando em 5s...`);
+        setTimeout(conectar, 5000);
+      } else {
+        console.error('[db] Não foi possível conectar ao banco após 5 tentativas:', err);
+      }
+    }
+  };
+  conectar();
 }
 
 start().catch((err) => {
