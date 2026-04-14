@@ -123,6 +123,11 @@ planosRouter.post('/gerar', async (req: Request, res: Response) => {
 
   console.log(`[planos] Gerando plano para ${paciente.nome} via GPT-4o...`);
 
+  if (!openai) {
+    res.status(503).json({ error: 'OPENAI_API_KEY não configurada. Adicione a variável de ambiente.' });
+    return;
+  }
+
   try {
     const completion = await openai.chat.completions.create({
       model: MODELO,

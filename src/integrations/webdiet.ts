@@ -18,35 +18,132 @@ const FORMA_PAGAMENTO_MAP: Record<string, string> = {
   TRANSFERENCIA: '6',
 };
 
+// Detecta o executável do Chrome disponível
+function detectChromePath(): string | undefined {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  // macOS — Google Chrome instalado
+  if (process.platform === 'darwin') {
+    return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  }
+  // Linux — Chromium via apt (Railway/Docker)
+  return '/usr/bin/chromium';
+}
+
+// Opções de lançamento do Puppeteer (compatível macOS + Linux/Docker)
+function getPuppeteerOptions() {
+  return {
+    headless: true as const,
+    executablePath: detectChromePath(),
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+    ],
+    timeout: 60000,
+  };
+}
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ─── Login ────────────────────────────────────────────────────
 
 async function loginWebdiet(browser: Browser): Promise<Page> {
   const page = await browser.newPage();
-  await page.goto(WEBDIET_LOGIN_URL, { waitUntil: 'networkidle2' });
+  page.setDefaultTimeout(60000);
+  page.setDefaultNavigationTimeout(60000);
 
-  await page.waitForSelector('input[placeholder="email de acesso"]');
-  await page.click('input[placeholder="email de acesso"]');
-  await page.type('input[placeholder="email de acesso"]', process.env.WEBDIET_EMAIL ?? '', { delay: 40 });
+  await page.goto(WEBDIET_LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.waitForSelector('input[placeholder="email de acesso"]', { timeout: 20000 });
 
-  await page.click('input[placeholder="senha de acesso"]');
-  await page.type('input[placeholder="senha de acesso"]', process.env.WEBDIET_PASSWORD ?? '', { delay: 40 });
+  // Limpa e preenche email — triple-click seleciona todo o conteúdo antes de digitar
+  await page.click('input[placeholder="email de acesso"]', { clickCount: 3 });
+  await page.keyboard.press('Backspace');
+  await page.type('input[placeholder="email de acesso"]', process.env.WEBDIET_EMAIL ?? '', { delay: 30 });
 
-  // Clica no botão "entrar"
-  await page.evaluate(() => {
-    const btn = Array.from(document.querySelectorAll<HTMLElement>('*'))
-      .find(el => el.textContent?.trim() === 'entrar');
-    btn?.click();
-  });
+  // Limpa e preenche senha
+  await page.click('input[placeholder="senha de acesso"]', { clickCount: 3 });
+  await page.keyboard.press('Backspace');
+  await page.type('input[placeholder="senha de acesso"]', process.env.WEBDIET_PASSWORD ?? '', { delay: 30 });
 
-  await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 });
+  // Verifica o que está nos campos antes de submeter
+  const camposPreenchidos = await page.evaluate(() => ({
+    email: (document.querySelector<HTMLInputElement>('input[placeholder="email de acesso"]'))?.value,
+    senhaLen: (document.querySelector<HTMLInputElement>('input[placeholder="senha de acesso"]'))?.value.length,
+  }));
+  console.log('[webdiet] Login — campos:', camposPreenchidos);
+
+  await new Promise(r => setTimeout(r, 300));
+
+  // Clica em "entrar" via page.click() (simula mouse real — mais confiável em headless)
+  await page.click('div.botao');
+
+  // Aguarda URL mudar para o painel
+  await page.waitForFunction(
+    () => window.location.href.includes('/painel/v4'),
+    { timeout: 30000, polling: 500 }
+  );
+
+  // Aguarda o campo de busca de pacientes aparecer (confirma que o painel carregou)
+  await page.waitForSelector(
+    '[placeholder="Busque pelo nome, apelido, CPF, telefone ou pela tag do paciente"]',
+    { timeout: 20000 }
+  );
+
   return page;
 }
 
-// ─── Gera resumo da anamnese com IA ──────────────────────────
+// ─── Gera resumo da anamnese (IA ou fallback HTML) ───────────
+
+function gerarResumoAnamneseFallback(dados: DadosPacienteWebdiet): string {
+  const sexoTexto = dados.sexo === 'M' ? 'Masculino' : 'Feminino';
+  const imc = dados.peso && dados.altura
+    ? (dados.peso / Math.pow(dados.altura / 100, 2)).toFixed(1)
+    : null;
+
+  return `
+<p><strong>📋 Pré-Consulta — ${new Date().toLocaleDateString('pt-BR')}</strong></p>
+
+<p><strong>Dados Pessoais</strong><br>
+Sexo: ${sexoTexto} | Nascimento: ${dados.dataNascimento ?? '—'} |
+Peso: ${dados.peso ? dados.peso + ' kg' : '—'} | Altura: ${dados.altura ? dados.altura + ' cm' : '—'}
+${imc ? `| IMC: ${imc}` : ''}</p>
+
+<p><strong>🎯 Objetivo Principal</strong><br>${dados.objetivo ?? '—'}</p>
+
+<p><strong>⚠️ Saúde</strong></p>
+<ul>
+  <li>Alergias/Intolerâncias: ${dados.alergias || 'Nenhuma relatada'}</li>
+  <li>Medicamentos: ${dados.medicamentos || 'Nenhum'}</li>
+  <li>Histórico familiar: ${dados.historicoFamiliar?.join(', ') || '—'}</li>
+</ul>
+
+<p><strong>🏋️ Atividade Física</strong><br>
+${dados.praticaExercicio ?? '—'} — ${dados.tipoExercicio || ''}</p>
+
+<p><strong>🍽️ Hábitos Alimentares</strong></p>
+<ul>
+  <li>Refeições/dia: ${dados.refeicoesPorDia ?? '—'}</li>
+  <li>Gosta de: ${dados.alimentosQueGosta || '—'}</li>
+  <li>Não gosta de: ${dados.alimentosQueNaoGosta || '—'}</li>
+  <li>Come fora: ${dados.comeFora ?? '—'} ${dados.ondeComeFora ? '(' + dados.ondeComeFora + ')' : ''}</li>
+  <li>Dificuldades: ${dados.dificuldadesAlimentacao || '—'}</li>
+  <li>Dietas anteriores: ${dados.dietasAnteriores || '—'}</li>
+</ul>
+
+<p><strong>💬 Expectativas</strong><br>${dados.expectativas || '—'}</p>
+`.trim();
+}
 
 async function gerarResumoAnamnese(dados: DadosPacienteWebdiet): Promise<string> {
+  // Se não há chave OpenAI, usa o fallback estruturado
+  if (!process.env.OPENAI_API_KEY) {
+    console.log('[webdiet] OPENAI_API_KEY não definida — usando template HTML padrão');
+    return gerarResumoAnamneseFallback(dados);
+  }
+
   const sexoTexto = dados.sexo === 'M' ? 'Masculino' : 'Feminino';
 
   const prompt = `Você é um assistente de nutrição. Com base nos dados da pré-consulta abaixo, gere um resumo clínico estruturado em HTML para ser inserido na anamnese do paciente no sistema WebDiet. Use títulos em negrito, listas e parágrafos curtos. Seja objetivo e profissional.
@@ -72,13 +169,17 @@ DADOS DO PACIENTE:
 
 Gere o HTML da anamnese agora:`;
 
-  const resp = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [{ role: 'user', content: prompt }],
-    max_tokens: 1000,
-  });
-
-  return resp.choices[0]?.message?.content ?? '';
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 1000,
+    });
+    return resp.choices[0]?.message?.content ?? gerarResumoAnamneseFallback(dados);
+  } catch (err) {
+    console.warn('[webdiet] Falha na IA, usando template padrão:', err);
+    return gerarResumoAnamneseFallback(dados);
+  }
 }
 
 // ─── Tipos ────────────────────────────────────────────────────
@@ -114,11 +215,7 @@ export interface DadosPacienteWebdiet {
 // ─── Função principal ─────────────────────────────────────────
 
 export async function inserirPacienteWebdiet(dados: DadosPacienteWebdiet): Promise<boolean> {
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH ?? undefined,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
+  const browser = await puppeteer.launch(getPuppeteerOptions());
 
   try {
     const page = await loginWebdiet(browser);
@@ -135,65 +232,66 @@ export async function inserirPacienteWebdiet(dados: DadosPacienteWebdiet): Promi
       btn?.click();
     });
 
-    await page.waitForSelector('[placeholder="Nome completo"]', { timeout: 8000 });
+    // Aguarda o campo #nomeAtalho (id específico do modal de atalho) ficar visível
+    await page.waitForSelector('#nomeAtalho', { visible: true, timeout: 15000 });
 
-    // ── 2. Preenche o formulário ────────────────────────────
-    await page.click('[placeholder="Nome completo"]');
-    await page.type('[placeholder="Nome completo"]', dados.nome, { delay: 30 });
+    // ── 2. Preenche o formulário usando IDs do modal "Atalho" ──
+    await page.focus('#nomeAtalho');
+    await page.keyboard.type(dados.nome, { delay: 30 });
 
     if (dados.apelido) {
-      await page.click('[placeholder="Apelido (opcional)"]');
-      await page.type('[placeholder="Apelido (opcional)"]', dados.apelido, { delay: 30 });
+      await page.focus('#apelidoAtalho');
+      await page.keyboard.type(dados.apelido, { delay: 30 });
     }
 
     if (dados.sexo) {
-      await page.evaluate((sexo) => {
-        const selects = document.querySelectorAll<HTMLSelectElement>('select');
-        selects.forEach(s => {
-          if (Array.from(s.options).some(o => o.value === 'F' || o.value === 'M')) {
-            s.value = sexo;
-            s.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        });
-      }, dados.sexo);
+      await page.select('#generoAtalho', dados.sexo);
     }
 
     if (dados.dataNascimento) {
-      await page.click('[placeholder="Data de nascimento"]');
-      await page.type('[placeholder="Data de nascimento"]', dados.dataNascimento, { delay: 30 });
+      await page.focus('#nascimentoAtalho');
+      await page.keyboard.type(dados.dataNascimento, { delay: 30 });
     }
 
     if (dados.cpf) {
-      await page.click('[placeholder="Número do CPF"]');
-      await page.type('[placeholder="Número do CPF"]', dados.cpf, { delay: 30 });
+      await page.focus('#cpfAtalho');
+      await page.keyboard.type(dados.cpf, { delay: 30 });
     }
 
     if (dados.telefone) {
       const tel = dados.telefone.replace(/\D/g, '');
-      await page.click('[placeholder="Celular com DDD"]');
-      await page.type('[placeholder="Celular com DDD"]', tel, { delay: 30 });
+      await page.focus('#telefoneAtalho');
+      await page.keyboard.type(tel, { delay: 30 });
     }
 
     if (dados.email) {
-      await page.click('[placeholder="Email de contato"]');
-      await page.type('[placeholder="Email de contato"]', dados.email, { delay: 30 });
+      await page.focus('#emailAtalho');
+      await page.keyboard.type(dados.email, { delay: 30 });
     }
 
     if (dados.tags) {
-      await page.click('[placeholder="Tags para o paciente"]');
-      await page.type('[placeholder="Tags para o paciente"]', dados.tags, { delay: 30 });
+      // Campo de tags não tem ID fixo, usa placeholder
+      const tagsEl = await page.$('[placeholder="Tags para o paciente"]');
+      if (tagsEl) {
+        await tagsEl.focus();
+        await page.keyboard.type(dados.tags, { delay: 30 });
+      }
     }
 
     // ── 3. Salva o paciente ─────────────────────────────────
     await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll<HTMLElement>('*'))
-        .find(el => el.textContent?.trim() === 'cadastrar');
+      // Botão "cadastrar" dentro do swal2 ou do modal de atalho
+      const btn = Array.from(document.querySelectorAll<HTMLElement>('button, div.botao, [class*="btn"]'))
+        .find(el => el.textContent?.trim().toLowerCase() === 'cadastrar');
       btn?.click();
     });
 
-    // Aguarda modal fechar
+    // Aguarda o campo #nomeAtalho sumir (modal fechou)
     await page.waitForFunction(
-      () => !document.querySelector('[placeholder="Nome completo"]'),
+      () => {
+        const el = document.querySelector<HTMLElement>('#nomeAtalho');
+        return !el || el.offsetWidth === 0;
+      },
       { timeout: 10000 }
     );
 
@@ -252,11 +350,18 @@ export async function inserirPacienteWebdiet(dados: DadosPacienteWebdiet): Promi
 
     // ── 6. Preenche o título da anamnese ────────────────────
     const hoje = new Date().toLocaleDateString('pt-BR');
-    const tituloInput = await page.$('[placeholder="Título da anamnese (exemplo: Histórico familiar, histórico patológico, rotina alimentar, etc.)"]');
-    if (tituloInput) {
-      await tituloInput.click();
-      await tituloInput.type(`Pré-Consulta — ${hoje}`, { delay: 30 });
-    }
+    const tituloAnamnese = `Pré-Consulta — ${hoje}`;
+    const tituloPreenchido = await page.evaluate((titulo) => {
+      const el = document.querySelector<HTMLInputElement>('#tituloAnamnese')
+        ?? document.querySelector<HTMLInputElement>('[placeholder*="Título da anamnese"]');
+      if (!el) return false;
+      el.focus();
+      el.value = titulo;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    }, tituloAnamnese);
+    console.log(`[webdiet] Título da anamnese preenchido: ${tituloPreenchido}`);
 
     // ── 7. Gera resumo com IA e insere no TinyMCE ──────────
     const resumoHtml = await gerarResumoAnamnese(dados);
@@ -394,11 +499,7 @@ export interface DadosPagamentoWebdiet {
 // ─── Lança pagamento no Financeiro do WebDiet ─────────────────
 
 export async function lancarPagamentoWebdiet(dados: DadosPagamentoWebdiet): Promise<boolean> {
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH ?? undefined,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
+  const browser = await puppeteer.launch(getPuppeteerOptions());
 
   try {
     const page = await loginWebdiet(browser);
@@ -422,38 +523,44 @@ export async function lancarPagamentoWebdiet(dados: DadosPagamentoWebdiet): Prom
 
     // ── 3. Vincula paciente pelo nome ───────────────────────────
     await page.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll<HTMLElement>('*'))
-        .find(el => el.textContent?.trim() === 'Vincular paciente');
+      // O botão "Vincular paciente" é a div#pacienteDiv com class="conjunto-input"
+      const btn = document.querySelector<HTMLElement>('#pacienteDiv')
+        ?? Array.from(document.querySelectorAll<HTMLElement>('*'))
+             .find(el => el.textContent?.trim() === 'Vincular paciente');
       btn?.click();
     });
-    await new Promise(r => setTimeout(r, 700));
+    // Aguarda o input de busca aparecer
+    await page.waitForSelector('#barraBuscaPacienteAtalho', { visible: true, timeout: 8000 });
+    await new Promise(r => setTimeout(r, 400));
 
     const primeiroNome = dados.nomePaciente.split(' ')[0];
-    await page.type('[name="barraBuscaPacienteAtalho"]', primeiroNome, { delay: 40 });
-    await new Promise(r => setTimeout(r, 1200));
+    await page.focus('#barraBuscaPacienteAtalho');
+    await page.keyboard.type(primeiroNome, { delay: 40 });
+    await new Promise(r => setTimeout(r, 1500));
 
     // Clica no primeiro resultado da lista
     await page.evaluate((nomeCompleto) => {
+      // Resultados ficam em li dentro do modal de busca de paciente
       const items = Array.from(document.querySelectorAll<HTMLElement>(
-        '[class*="paciente-item"], [class*="item-paciente"], li[data-id], .modal-body li, .listaPacientes li'
+        '.modal.show li, .modal.fade.show li, .listaPacientes li, li[onclick], ul li'
       ));
       const encontrado = items.find(el => el.textContent?.includes(nomeCompleto.split(' ')[0]));
       (encontrado ?? items[0])?.click();
     }, dados.nomePaciente);
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 800));
 
     // ── 4. Preenche nome do lançamento ──────────────────────────
     await page.click('[name="nome"]');
     await page.type('[name="nome"]', dados.nomeLancamento, { delay: 30 });
 
     // ── 5. Categoria ────────────────────────────────────────────
-    if (dados.categoria && dados.categoria !== 'Consulta') {
-      await page.select('[name="categoriaAtalho"]', dados.categoria);
+    if (dados.categoria) {
+      await page.select('#categoriaAtalho', dados.categoria);
     }
 
     // ── 6. Valor ────────────────────────────────────────────────
     await page.evaluate((val) => {
-      const input = document.querySelector<HTMLInputElement>('[name="valor"]');
+      const input = document.querySelector<HTMLInputElement>('#valor');
       if (input) {
         input.value = val;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -463,7 +570,7 @@ export async function lancarPagamentoWebdiet(dados: DadosPagamentoWebdiet): Prom
 
     // ── 7. Forma de pagamento ───────────────────────────────────
     const formaId = FORMA_PAGAMENTO_MAP[dados.formaPagamento] ?? '7';
-    await page.select('[name="forma"]', formaId);
+    await page.select('#forma', formaId);
 
     // ── 8. CPF / nº documento (opcional) ───────────────────────
     if (dados.cpfPaciente) {
@@ -506,11 +613,7 @@ export interface EstatisticasWebdiet {
 }
 
 export async function obterEstatisticasWebdiet(): Promise<EstatisticasWebdiet | null> {
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH ?? undefined,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  });
+  const browser = await puppeteer.launch(getPuppeteerOptions());
 
   try {
     const page = await loginWebdiet(browser);
