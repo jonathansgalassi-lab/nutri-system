@@ -13,7 +13,7 @@ import { agendamentoRouter, enviarLembretesConsulta } from './modules/agendament
 import { chatbotRouter } from './modules/chatbot';
 import { preconsultaRouter } from './modules/preconsulta';
 import { acompanhamentoRouter, enviarCheckinsSemana } from './modules/acompanhamento';
-import { financeiroRouter, verificarVencimentos, enviarRelatorioMensal } from './modules/financeiro';
+import { financeiroRouter, verificarVencimentos, enviarRelatorioMensal, enviarRelatorioSemanal } from './modules/financeiro';
 import { planosRouter } from './modules/planos';
 
 dotenv.config();
@@ -96,6 +96,13 @@ cron.schedule('0 9 1 * *', async () => {
   console.log('[cron] Enviando relatório mensal...');
   try { await enviarRelatorioMensal(); }
   catch (err) { console.error('[cron] Erro relatório mensal:', err); }
+});
+
+// Relatório semanal WebDiet — toda sexta às 18h
+cron.schedule('0 18 * * 5', async () => {
+  console.log('[cron] Enviando relatório semanal...');
+  try { await enviarRelatorioSemanal(); }
+  catch (err) { console.error('[cron] Erro relatório semanal:', err); }
 });
 
 // ── Inicialização ──────────────────────────────────────────────

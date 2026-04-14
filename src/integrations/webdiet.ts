@@ -6,6 +6,17 @@ dotenv.config();
 
 const WEBDIET_LOGIN_URL = 'https://pt.webdiet.com.br/login/';
 const WEBDIET_PAINEL_URL = 'https://pt.webdiet.com.br/painel/v4/';
+const WEBDIET_FINANCEIRO_URL = 'https://pt.webdiet.com.br/painel/v4/financeiro.php';
+const WEBDIET_STATS_URL = 'https://pt.webdiet.com.br/painel/v4/estatisticas.php';
+
+// Mapeamento Asaas billingType → select "forma" no WebDiet
+const FORMA_PAGAMENTO_MAP: Record<string, string> = {
+  PIX: '7',
+  CREDIT_CARD: '3',
+  DEBIT_CARD: '2',
+  BOLETO: '1',
+  TRANSFERENCIA: '6',
+};
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -365,5 +376,185 @@ async function criarPrescricaoComProtocolo(page: Page, dados: DadosPacienteWebdi
     }
   } catch (err) {
     console.error('[webdiet] Erro ao criar prescrição:', err);
+  }
+}
+
+// ─── Tipos: lançamento financeiro ─────────────────────────────
+
+export interface DadosPagamentoWebdiet {
+  nomePaciente: string;
+  nomeLancamento: string;       // ex: "Acompanhamento Anual - Parcela 1/12"
+  valor: number;                // ex: 300.00
+  formaPagamento: 'PIX' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'BOLETO' | string;
+  categoria?: 'Consulta' | 'Retorno';
+  cpfPaciente?: string;
+  observacao?: string;
+}
+
+// ─── Lança pagamento no Financeiro do WebDiet ─────────────────
+
+export async function lancarPagamentoWebdiet(dados: DadosPagamentoWebdiet): Promise<boolean> {
+  const browser = await puppeteer.launch({
+    headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH ?? undefined,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  });
+
+  try {
+    const page = await loginWebdiet(browser);
+    await page.goto(WEBDIET_FINANCEIRO_URL, { waitUntil: 'networkidle2' });
+
+    // ── 1. Abre modal ───────────────────────────────────────────
+    await page.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll<HTMLElement>('*'))
+        .find(el => el.textContent?.trim() === 'adicionar nova movimentação');
+      btn?.click();
+    });
+    await new Promise(r => setTimeout(r, 600));
+
+    // ── 2. Seleciona tipo "entrada" ─────────────────────────────
+    await page.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll<HTMLElement>('*'))
+        .find(el => el.textContent?.trim() === 'entrada');
+      btn?.click();
+    });
+    await new Promise(r => setTimeout(r, 800));
+
+    // ── 3. Vincula paciente pelo nome ───────────────────────────
+    await page.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll<HTMLElement>('*'))
+        .find(el => el.textContent?.trim() === 'Vincular paciente');
+      btn?.click();
+    });
+    await new Promise(r => setTimeout(r, 700));
+
+    const primeiroNome = dados.nomePaciente.split(' ')[0];
+    await page.type('[name="barraBuscaPacienteAtalho"]', primeiroNome, { delay: 40 });
+    await new Promise(r => setTimeout(r, 1200));
+
+    // Clica no primeiro resultado da lista
+    await page.evaluate((nomeCompleto) => {
+      const items = Array.from(document.querySelectorAll<HTMLElement>(
+        '[class*="paciente-item"], [class*="item-paciente"], li[data-id], .modal-body li, .listaPacientes li'
+      ));
+      const encontrado = items.find(el => el.textContent?.includes(nomeCompleto.split(' ')[0]));
+      (encontrado ?? items[0])?.click();
+    }, dados.nomePaciente);
+    await new Promise(r => setTimeout(r, 600));
+
+    // ── 4. Preenche nome do lançamento ──────────────────────────
+    await page.click('[name="nome"]');
+    await page.type('[name="nome"]', dados.nomeLancamento, { delay: 30 });
+
+    // ── 5. Categoria ────────────────────────────────────────────
+    if (dados.categoria && dados.categoria !== 'Consulta') {
+      await page.select('[name="categoriaAtalho"]', dados.categoria);
+    }
+
+    // ── 6. Valor ────────────────────────────────────────────────
+    await page.evaluate((val) => {
+      const input = document.querySelector<HTMLInputElement>('[name="valor"]');
+      if (input) {
+        input.value = val;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }, dados.valor.toFixed(2).replace('.', ','));
+
+    // ── 7. Forma de pagamento ───────────────────────────────────
+    const formaId = FORMA_PAGAMENTO_MAP[dados.formaPagamento] ?? '7';
+    await page.select('[name="forma"]', formaId);
+
+    // ── 8. CPF / nº documento (opcional) ───────────────────────
+    if (dados.cpfPaciente) {
+      await page.click('[name="cpf"]');
+      await page.type('[name="cpf"]', dados.cpfPaciente, { delay: 20 });
+    }
+
+    // ── 9. Observação ───────────────────────────────────────────
+    if (dados.observacao) {
+      await page.click('[name="observacao"]');
+      await page.type('[name="observacao"]', dados.observacao, { delay: 20 });
+    }
+
+    // ── 10. Confirma ────────────────────────────────────────────
+    await page.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll<HTMLElement>('*'))
+        .find(el => el.textContent?.trim() === 'confirmar');
+      btn?.click();
+    });
+    await new Promise(r => setTimeout(r, 1500));
+
+    console.log(`[webdiet] Pagamento lançado: ${dados.nomePaciente} — R$ ${dados.valor.toFixed(2)}`);
+    return true;
+
+  } catch (err) {
+    console.error('[webdiet] Erro ao lançar pagamento:', err);
+    return false;
+  } finally {
+    await browser.close();
+  }
+}
+
+// ─── Busca estatísticas do WebDiet ────────────────────────────
+
+export interface EstatisticasWebdiet {
+  totalConsultas: number;
+  totalPacientes: number;
+  totalPrescricoes: number;
+  totalAntropometrias: number;
+}
+
+export async function obterEstatisticasWebdiet(): Promise<EstatisticasWebdiet | null> {
+  const browser = await puppeteer.launch({
+    headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH ?? undefined,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  });
+
+  try {
+    const page = await loginWebdiet(browser);
+    await page.goto(WEBDIET_STATS_URL, { waitUntil: 'networkidle2' });
+    await new Promise(r => setTimeout(r, 1500));
+
+    const stats = await page.evaluate(() => {
+      // Consultas registradas — texto "Total de consultas: N"
+      const totalTexto = Array.from(document.querySelectorAll<HTMLElement>('*'))
+        .find(el => el.textContent?.includes('Total de consultas:'))?.textContent ?? '';
+      const totalConsultas = parseInt(totalTexto.match(/Total de consultas:\s*(\d+)/)?.[1] ?? '0');
+
+      // Cards Pacientes / Antropometrias / Prescrições
+      const cards = Array.from(document.querySelectorAll<HTMLElement>('[class*="card"] h2, [class*="card"] span, td, th'));
+      const textos = cards.map(el => el.textContent?.trim() ?? '');
+
+      // Tenta ler os valores dos 4 cards (Pacientes, Antropometrias, Prescrições, Manipulados)
+      const numeros = Array.from(document.querySelectorAll<HTMLElement>('*'))
+        .filter(el =>
+          el.children.length === 0 &&
+          /^\d+$/.test(el.textContent?.trim() ?? '') &&
+          parseInt(el.textContent?.trim() ?? '0') > 0
+        )
+        .map(el => parseInt(el.textContent?.trim() ?? '0'));
+
+      void textos;
+      return { totalConsultas, numeros: numeros.slice(0, 10) };
+    });
+
+    // Os cards aparecem na ordem: Pacientes, Antropometrias, Prescrições, Manipulados
+    // Encontra os 4 maiores valores consistentes
+    const [totalPacientes = 0, totalAntropometrias = 0, totalPrescricoes = 0] = stats.numeros;
+
+    return {
+      totalConsultas: stats.totalConsultas,
+      totalPacientes,
+      totalAntropometrias,
+      totalPrescricoes,
+    };
+
+  } catch (err) {
+    console.error('[webdiet] Erro ao buscar estatísticas:', err);
+    return null;
+  } finally {
+    await browser.close();
   }
 }
