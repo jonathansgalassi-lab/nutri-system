@@ -31,7 +31,11 @@ export interface DadosPacienteWebdiet {
 }
 
 export async function inserirPacienteWebdiet(dados: DadosPacienteWebdiet): Promise<string> {
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({
+    headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH ?? undefined,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  });
 
   try {
     const page = await loginWebdiet(browser);

@@ -20,7 +20,11 @@ async function loginWebdiet(browser) {
     return page;
 }
 async function inserirPacienteWebdiet(dados) {
-    const browser = await puppeteer_1.default.launch({ headless: true });
+    const browser = await puppeteer_1.default.launch({
+        headless: true,
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH ?? undefined,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
     try {
         const page = await loginWebdiet(browser);
         // Navega para cadastro de paciente
