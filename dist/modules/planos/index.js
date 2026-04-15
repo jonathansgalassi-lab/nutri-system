@@ -90,18 +90,12 @@ exports.planosRouter.post('/gerar', async (req, res) => {
         gordura_alvo: macros.lip_g,
     });
     console.log(`[planos] Gerando plano para ${paciente.nome} via GPT-4o...`);
-    if (!openai_1.openai) {
-        res.status(503).json({ error: 'OPENAI_API_KEY não configurada. Adicione a variável de ambiente.' });
+    if (!openai_1.openai && !openai_1.gemini) {
+        res.status(503).json({ error: 'Nenhuma chave de IA configurada. Adicione GEMINI_API_KEY (gratuito) ou OPENAI_API_KEY.' });
         return;
     }
     try {
-        const completion = await openai_1.openai.chat.completions.create({
-            model: openai_1.MODELO,
-            messages: [{ role: 'user', content: prompt }],
-            response_format: { type: 'json_object' },
-            temperature: 0.7,
-        });
-        const conteudoRaw = completion.choices[0]?.message?.content ?? '{}';
+        const conteudoRaw = await (0, openai_1.gerarTextoIA)(prompt);
         const conteudo = JSON.parse(conteudoRaw);
         // 7. Salva o plano no banco
         const [plano] = await (0, connection_1.query)(`INSERT INTO planos_alimentares (paciente_id, avaliacao_id, conteudo, status, gerado_por_ia)

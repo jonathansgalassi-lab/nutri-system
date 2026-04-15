@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { query, queryOne } from '../../database/connection';
-import { openai, MODELO } from '../../integrations/openai';
+import { openai, gemini, gerarTextoIA } from '../../integrations/openai';
 import { inserirPacienteWebdiet } from '../../integrations/webdiet';
 import { Paciente, Avaliacao, FormPreconsulta, PlanoAlimentar, ConteudoPlano, RespostasPreconsulta } from '../../shared/types';
 import {
@@ -123,20 +123,13 @@ planosRouter.post('/gerar', async (req: Request, res: Response) => {
 
   console.log(`[planos] Gerando plano para ${paciente.nome} via GPT-4o...`);
 
-  if (!openai) {
-    res.status(503).json({ error: 'OPENAI_API_KEY não configurada. Adicione a variável de ambiente.' });
+  if (!openai && !gemini) {
+    res.status(503).json({ error: 'Nenhuma chave de IA configurada. Adicione GEMINI_API_KEY (gratuito) ou OPENAI_API_KEY.' });
     return;
   }
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: MODELO,
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-      temperature: 0.7,
-    });
-
-    const conteudoRaw = completion.choices[0]?.message?.content ?? '{}';
+    const conteudoRaw = await gerarTextoIA(prompt);
     const conteudo = JSON.parse(conteudoRaw) as ConteudoPlano;
 
     // 7. Salva o plano no banco

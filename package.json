@@ -13,6 +13,7 @@
     "db:seed": "tsx src/database/seed.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.6.7",
     "cors": "^2.8.5",
     "date-fns": "^3.3.1",
