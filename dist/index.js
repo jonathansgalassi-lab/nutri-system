@@ -68,6 +68,10 @@ app.get('/preconsulta', (_req, res) => {
 app.get('/admin', (_req, res) => {
     res.sendFile(path_1.default.join(__dirname, '..', 'public', 'admin.html'));
 });
+// Qualquer sub-rota do admin (ex: /admin/pacientes/:id) redireciona para o painel
+app.get('/admin/*', (_req, res) => {
+    res.redirect('/admin');
+});
 app.get('/', (_req, res) => {
     res.redirect('/admin');
 });
