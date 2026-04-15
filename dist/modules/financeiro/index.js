@@ -4,10 +4,12 @@ exports.financeiroRouter = void 0;
 exports.verificarVencimentos = verificarVencimentos;
 exports.gerarRelatorio = gerarRelatorio;
 exports.enviarRelatorioMensal = enviarRelatorioMensal;
+exports.enviarRelatorioSemanal = enviarRelatorioSemanal;
 const express_1 = require("express");
 const connection_1 = require("../../database/connection");
 const twilio_1 = require("../../integrations/twilio");
 const pagamentos_1 = require("../../integrations/pagamentos");
+const webdiet_1 = require("../../integrations/webdiet");
 const date_fns_1 = require("date-fns");
 const locale_1 = require("date-fns/locale");
 exports.financeiroRouter = (0, express_1.Router)();
@@ -128,6 +130,17 @@ exports.financeiroRouter.post('/webhook/asaas', async (req, res) => {
                     `💵 Valor: R$ ${payment.value.toFixed(2)}\n` +
                     `💳 ${payment.billingType}`);
             }
+            // Lança automaticamente no Financeiro do WebDiet (background)
+            (0, webdiet_1.lancarPagamentoWebdiet)({
+                nomePaciente: pagamento.nome,
+                nomeLancamento: `Plano ${pagamento.plano}`,
+                valor: payment.value,
+                formaPagamento: payment.billingType,
+                categoria: 'Consulta',
+                observacao: `Asaas #${payment.id}`,
+            }).catch((err) => {
+                console.error('[financeiro] Erro ao lançar no WebDiet:', err.message);
+            });
         }
     }
     res.sendStatus(200);
@@ -265,5 +278,62 @@ async function enviarRelatorioMensal() {
         `   Novos pacientes: ${metricas.novos_pacientes}`;
     await (0, twilio_1.enviarWhatsApp)(nutriWpp, mensagem);
     console.log('[financeiro] Relatório mensal enviado.');
+}
+// ─── Relatório semanal com dados do WebDiet (sexta às 18h) ───
+async function enviarRelatorioSemanal() {
+    const nutriWpp = process.env.NUTRICIONISTA_WHATSAPP;
+    if (!nutriWpp)
+        return;
+    // Janela da semana (últimos 7 dias)
+    const hoje = new Date();
+    const semanaPassada = new Date(hoje);
+    semanaPassada.setDate(hoje.getDate() - 7);
+    const inicio = (0, date_fns_1.format)(semanaPassada, 'yyyy-MM-dd');
+    const fim = (0, date_fns_1.format)(hoje, 'yyyy-MM-dd');
+    // ── Dados do nosso banco ──────────────────────────────────────
+    const [pagamentosResult] = await (0, connection_1.query)(`SELECT COALESCE(SUM(valor), 0) AS total, COUNT(*) AS qtd
+     FROM pagamentos
+     WHERE status = 'pago' AND data_pagamento BETWEEN $1 AND $2`, [inicio + 'T00:00:00', fim + 'T23:59:59']);
+    const [novosPacientesResult] = await (0, connection_1.query)(`SELECT COUNT(*) AS qtd FROM pacientes WHERE created_at BETWEEN $1 AND $2`, [inicio + 'T00:00:00', fim + 'T23:59:59']);
+    const [ativosResult] = await (0, connection_1.query)(`SELECT COUNT(*) AS qtd FROM contratos WHERE status = 'ativo'`);
+    const vencimentos7dias = await (0, connection_1.query)(`SELECT p.nome, c.plano, c.data_fim
+     FROM contratos c
+     JOIN pacientes p ON p.id = c.paciente_id
+     WHERE c.status = 'ativo'
+       AND c.data_fim BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+     ORDER BY c.data_fim ASC LIMIT 5`);
+    const receitaSemana = parseFloat(pagamentosResult?.total ?? '0');
+    const qtdPagamentos = parseInt(pagamentosResult?.qtd ?? '0');
+    const novosPacientes = parseInt(novosPacientesResult?.qtd ?? '0');
+    const totalAtivos = parseInt(ativosResult?.qtd ?? '0');
+    // ── Dados do WebDiet (best-effort) ────────────────────────────
+    let linhaWebDiet = '';
+    try {
+        const stats = await (0, webdiet_1.obterEstatisticasWebdiet)();
+        if (stats) {
+            linhaWebDiet =
+                `\n📊 *WebDiet esta semana:*\n` +
+                    `   🧑‍⚕️ Pacientes cadastrados: ${stats.totalPacientes}\n` +
+                    `   📋 Consultas registradas: ${stats.totalConsultas}\n` +
+                    `   🥗 Prescrições ativas: ${stats.totalPrescricoes}\n`;
+        }
+    }
+    catch {
+        // Ignora falha na busca de stats do WebDiet
+    }
+    const listaVenc = vencimentos7dias.length
+        ? vencimentos7dias.map(v => `• ${v.nome} (${v.plano}) — ${(0, date_fns_1.format)(new Date(v.data_fim), 'dd/MM', { locale: locale_1.ptBR })}`).join('\n')
+        : '• Nenhum vencimento esta semana';
+    const semanaFormatada = `${(0, date_fns_1.format)(semanaPassada, 'dd/MM', { locale: locale_1.ptBR })} a ${(0, date_fns_1.format)(hoje, 'dd/MM/yyyy', { locale: locale_1.ptBR })}`;
+    const mensagem = `📅 *RESUMO SEMANAL — ${semanaFormatada}*\n\n` +
+        `💰 *Receita da semana:* R$ ${receitaSemana.toFixed(2)}\n` +
+        `   (${qtdPagamentos} pagamento${qtdPagamentos !== 1 ? 's' : ''} confirmado${qtdPagamentos !== 1 ? 's' : ''})\n\n` +
+        `👥 *Pacientes ativos:* ${totalAtivos}\n` +
+        `🆕 *Novos pacientes:* ${novosPacientes}\n` +
+        linhaWebDiet +
+        `\n⚠️ *Vencimentos nos próximos 7 dias:*\n${listaVenc}\n\n` +
+        `_Tenha um ótimo final de semana! 🌿_`;
+    await (0, twilio_1.enviarWhatsApp)(nutriWpp, mensagem);
+    console.log('[financeiro] Relatório semanal enviado.');
 }
 //# sourceMappingURL=index.js.map

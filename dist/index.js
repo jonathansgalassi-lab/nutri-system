@@ -65,6 +65,12 @@ app.use(express_1.default.static(path_1.default.join(__dirname, '..', 'public'))
 app.get('/preconsulta', (_req, res) => {
     res.sendFile(path_1.default.join(__dirname, '..', 'public', 'preconsulta.html'));
 });
+app.get('/admin', (_req, res) => {
+    res.sendFile(path_1.default.join(__dirname, '..', 'public', 'admin.html'));
+});
+app.get('/', (_req, res) => {
+    res.redirect('/admin');
+});
 // ── Health check ───────────────────────────────────────────────
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -132,6 +138,16 @@ node_cron_1.default.schedule('0 9 1 * *', async () => {
     }
     catch (err) {
         console.error('[cron] Erro relatório mensal:', err);
+    }
+});
+// Relatório semanal WebDiet — toda sexta às 18h
+node_cron_1.default.schedule('0 18 * * 5', async () => {
+    console.log('[cron] Enviando relatório semanal...');
+    try {
+        await (0, financeiro_1.enviarRelatorioSemanal)();
+    }
+    catch (err) {
+        console.error('[cron] Erro relatório semanal:', err);
     }
 });
 // ── Inicialização ──────────────────────────────────────────────

@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.chatbotRouter = void 0;
 const express_1 = require("express");
-const estados_1 = require("./estados");
 exports.chatbotRouter = (0, express_1.Router)();
 /**
  * POST /webhook/whatsapp
@@ -16,8 +15,9 @@ exports.chatbotRouter.post('/', async (req, res) => {
             // Mantém o + internacional: whatsapp:+5543... → +5543...
             const whatsapp = String(req.body.From).replace('whatsapp:', '');
             const texto = String(req.body.Body).trim();
-            console.log(`[chatbot] Twilio | ${whatsapp}: "${texto}"`);
-            await (0, estados_1.processarMensagem)(whatsapp, texto);
+            console.log(`[chatbot] Twilio | ${whatsapp}: "${texto}" (chatbot inativo)`);
+            // Chatbot inativo — resposta automática desabilitada
+            // await processarMensagem(whatsapp, texto);
             // Twilio espera TwiML ou 200 vazio
             res.set('Content-Type', 'text/xml');
             res.send('<Response></Response>');
@@ -27,7 +27,16 @@ exports.chatbotRouter.post('/', async (req, res) => {
         // Evolution envia JSON com estrutura: data.key.remoteJid + data.message.conversation
         if (req.body?.data?.key?.remoteJid) {
             const remoteJid = req.body.data.key.remoteJid;
-            const whatsapp = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+            // Ignora mensagens de grupos (@g.us), status (@broadcast) e do próprio bot (fromMe)
+            if (!remoteJid.endsWith('@s.whatsapp.net')) {
+                res.sendStatus(200);
+                return;
+            }
+            if (req.body.data.key.fromMe === true) {
+                res.sendStatus(200);
+                return;
+            }
+            const whatsapp = remoteJid.replace('@s.whatsapp.net', '');
             const texto = req.body.data.message?.conversation ??
                 req.body.data.message?.extendedTextMessage?.text ??
                 '';
@@ -35,8 +44,9 @@ exports.chatbotRouter.post('/', async (req, res) => {
                 res.sendStatus(200);
                 return;
             }
-            console.log(`[chatbot] Evolution | ${whatsapp}: "${texto}"`);
-            await (0, estados_1.processarMensagem)(whatsapp, texto);
+            console.log(`[chatbot] Evolution | ${whatsapp}: "${texto}" (chatbot inativo)`);
+            // Chatbot inativo — resposta automática desabilitada
+            // await processarMensagem(whatsapp, texto);
             res.sendStatus(200);
             return;
         }
