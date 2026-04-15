@@ -3,18 +3,18 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-);
+const auth = new google.auth.GoogleAuth({
+  credentials: {
+    client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  },
+  scopes: [
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/calendar.events',
+  ],
+});
 
-if (process.env.GOOGLE_REFRESH_TOKEN) {
-  oauth2Client.setCredentials({
-    refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-  });
-}
-
-export const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+export const calendar = google.calendar({ version: 'v3', auth });
 export const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID ?? 'primary';
 
 export interface SlotDisponivel {

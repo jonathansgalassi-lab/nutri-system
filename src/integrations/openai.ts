@@ -12,7 +12,7 @@ export const openai = process.env.OPENAI_API_KEY
   : null;
 
 // ── Google Gemini (gratuito via AI Studio) ─────────────────────
-export const GEMINI_MODELO = process.env.GEMINI_MODEL ?? 'gemini-1.5-flash';
+export const GEMINI_MODELO = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
 
 export const gemini = process.env.GEMINI_API_KEY
   ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)

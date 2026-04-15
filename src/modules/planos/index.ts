@@ -97,7 +97,7 @@ planosRouter.post('/gerar', async (req: Request, res: Response) => {
   const metaCalorica = calcularMetaCalorica(get, objetivo);
   const macros = calcularMacros(metaCalorica, objetivo);
 
-  // 6. Monta prompt para GPT-4o
+  // 6. Monta prompt para IA
   const prompt = montarPrompt({
     nome: paciente.nome,
     idade,
@@ -121,7 +121,7 @@ planosRouter.post('/gerar', async (req: Request, res: Response) => {
     gordura_alvo: macros.lip_g,
   });
 
-  console.log(`[planos] Gerando plano para ${paciente.nome} via GPT-4o...`);
+  console.log(`[planos] Gerando plano para ${paciente.nome} via Gemini...`);
 
   if (!openai && !gemini) {
     res.status(503).json({ error: 'Nenhuma chave de IA configurada. Adicione GEMINI_API_KEY (gratuito) ou OPENAI_API_KEY.' });
