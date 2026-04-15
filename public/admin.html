@@ -1331,10 +1331,80 @@ async function loadPlanos() {
   } catch(e) { document.getElementById('tabelaPlanos').innerHTML=`<p style="color:var(--red);padding:1rem;font-size:.82rem">Erro: ${e.message}</p>`; }
 }
 
+function renderizarPlano(conteudo) {
+  if (!conteudo || typeof conteudo !== 'object') return '<p style="color:var(--silver)">Conteúdo não disponível</p>';
+
+  const nomesRefeicao = {
+    cafe_manha:'☀️ Café da Manhã', lanche_manha:'🍎 Lanche da Manhã',
+    almoco:'🍽️ Almoço', lanche_tarde:'🥗 Lanche da Tarde',
+    jantar:'🌙 Jantar', ceia:'🫖 Ceia'
+  };
+
+  const r = conteudo.resumo || {};
+  const macros = r.macros || {};
+  let html = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:1.25rem">
+      <div style="background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:.75rem;text-align:center">
+        <div style="font-size:1.1rem;font-weight:700;color:var(--gold2)">${r.meta_calorica||'—'}</div>
+        <div style="font-size:.65rem;color:var(--silver);margin-top:.2rem">kcal/dia</div>
+      </div>
+      <div style="background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:.75rem;text-align:center">
+        <div style="font-size:1.1rem;font-weight:700;color:#5dd9a0">${macros.ptn_g||'—'}g</div>
+        <div style="font-size:.65rem;color:var(--silver);margin-top:.2rem">Proteína</div>
+      </div>
+      <div style="background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:.75rem;text-align:center">
+        <div style="font-size:1.1rem;font-weight:700;color:#7db8f0">${macros.cho_g||'—'}g</div>
+        <div style="font-size:.65rem;color:var(--silver);margin-top:.2rem">Carboidrato</div>
+      </div>
+      <div style="background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:.75rem;text-align:center">
+        <div style="font-size:1.1rem;font-weight:700;color:#f0c070">${macros.lip_g||'—'}g</div>
+        <div style="font-size:.65rem;color:var(--silver);margin-top:.2rem">Gordura</div>
+      </div>
+    </div>`;
+
+  const semana = conteudo.plano?.semana_1_4 || {};
+  for (const [chave, nomeRefeicao] of Object.entries(nomesRefeicao)) {
+    const opcoes = semana[chave];
+    if (!opcoes?.length) continue;
+    html += `<div style="margin-bottom:1rem">
+      <div style="font-size:.7rem;font-weight:700;color:var(--silver2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.5rem">${nomeRefeicao}</div>`;
+    opcoes.forEach((op, i) => {
+      const ingredientes = (op.ingredientes||[]).map(i => `${i.item} (${i.quantidade})`).join(', ');
+      html += `<div style="background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:.75rem;margin-bottom:.35rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">
+          <span style="font-size:.82rem;font-weight:600;color:var(--white2)">Opção ${i+1}: ${op.nome||'—'}</span>
+          <span style="font-size:.7rem;color:var(--silver)">${op.calorias||'—'} kcal</span>
+        </div>
+        <div style="font-size:.72rem;color:var(--silver)">${ingredientes}</div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+
+  if (conteudo.recomendacoes?.length) {
+    html += `<div style="margin-top:.75rem"><div style="font-size:.7rem;font-weight:700;color:var(--silver2);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.5rem">📌 Recomendações</div>
+      <ul style="padding-left:1.25rem">${conteudo.recomendacoes.map(r=>`<li style="font-size:.8rem;color:var(--silver2);margin-bottom:.25rem">${r}</li>`).join('')}</ul></div>`;
+  }
+
+  if (conteudo.alertas_nutricionista?.length) {
+    html += `<div style="margin-top:.75rem;padding:.75rem;background:rgba(224,85,85,.08);border:1px solid rgba(224,85,85,.2);border-radius:10px">
+      <div style="font-size:.7rem;font-weight:700;color:#f08888;margin-bottom:.4rem">⚠️ Alertas para o Nutricionista</div>
+      <ul style="padding-left:1.25rem">${conteudo.alertas_nutricionista.map(a=>`<li style="font-size:.78rem;color:#f08888;margin-bottom:.2rem">${a}</li>`).join('')}</ul></div>`;
+  }
+
+  return html;
+}
+
 function verPlano(p) {
-  document.getElementById('modalPlanoConteudo').innerHTML = p.conteudo||p.content||JSON.stringify(p,null,2);
-  document.getElementById('modalPlanoAcoes').innerHTML = (p.status==='rascunho'||p.status==='pendente')
-    ? `<button onclick="aprovarPlano('${p.id}');document.getElementById('modalPlano').classList.add('hidden')" class="btn btn-gold">Aprovar e enviar ao WebDiet</button>` : '';
+  let conteudo = p.conteudo || p.content;
+  if (typeof conteudo === 'string') { try { conteudo = JSON.parse(conteudo); } catch { conteudo = null; } }
+  document.getElementById('modalPlanoConteudo').innerHTML = renderizarPlano(conteudo);
+  const pendente = p.status==='rascunho'||p.status==='pendente';
+  document.getElementById('modalPlanoAcoes').innerHTML = pendente
+    ? `<button onclick="aprovarPlano('${p.id}');document.getElementById('modalPlano').classList.add('hidden')" class="btn btn-gold">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:13px;height:13px"><polyline points="20 6 9 17 4 12"/></svg>
+        Aprovar e enviar ao WebDiet
+       </button>` : `<span style="font-size:.75rem;color:var(--green)">✓ Aprovado e publicado no WebDiet</span>`;
   document.getElementById('modalPlano').classList.remove('hidden');
 }
 
