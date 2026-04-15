@@ -19,19 +19,27 @@ export const gemini = process.env.GEMINI_API_KEY
   : null;
 
 if (!openai && !gemini) {
-  console.warn('[ia] Nenhuma chave de IA configurada (OPENAI_API_KEY ou GEMINI_API_KEY). Geração de planos desabilitada.');
-} else if (gemini && !openai) {
-  console.log('[ia] Usando Google Gemini como provedor de IA.');
-} else if (openai) {
-  console.log('[ia] Usando OpenAI como provedor de IA.');
+  console.warn('[ia] Nenhuma chave de IA configurada. Geração de planos desabilitada.');
+} else {
+  console.log(`[ia] Provedor ativo: ${gemini ? 'Google Gemini' : 'OpenAI'}`);
 }
 
 /**
  * Gera texto com o provedor disponível.
- * Prioridade: OpenAI → Gemini
+ * Prioridade: Gemini (gratuito) → OpenAI (fallback)
  */
 export async function gerarTextoIA(prompt: string): Promise<string> {
-  // Tenta OpenAI primeiro
+  // 1. Gemini (gratuito, prioridade)
+  if (gemini) {
+    const model = gemini.getGenerativeModel({ model: GEMINI_MODELO });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    // Extrai JSON (Gemini às vezes retorna ```json ... ```)
+    const match = text.match(/```json\s*([\s\S]*?)```/) ?? text.match(/(\{[\s\S]*\})/);
+    return match ? match[1].trim() : text.trim();
+  }
+
+  // 2. OpenAI (fallback)
   if (openai) {
     const completion = await openai.chat.completions.create({
       model: MODELO,
@@ -40,16 +48,6 @@ export async function gerarTextoIA(prompt: string): Promise<string> {
       temperature: 0.7,
     });
     return completion.choices[0]?.message?.content ?? '{}';
-  }
-
-  // Fallback para Gemini
-  if (gemini) {
-    const model = gemini.getGenerativeModel({ model: GEMINI_MODELO });
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    // Extrai JSON do texto (Gemini pode incluir markdown ```json ... ```)
-    const match = text.match(/```json\s*([\s\S]*?)```/) ?? text.match(/(\{[\s\S]*\})/);
-    return match ? match[1].trim() : text.trim();
   }
 
   throw new Error('Nenhum provedor de IA configurado. Adicione GEMINI_API_KEY ou OPENAI_API_KEY.');

@@ -20,20 +20,26 @@ exports.gemini = process.env.GEMINI_API_KEY
     ? new generative_ai_1.GoogleGenerativeAI(process.env.GEMINI_API_KEY)
     : null;
 if (!exports.openai && !exports.gemini) {
-    console.warn('[ia] Nenhuma chave de IA configurada (OPENAI_API_KEY ou GEMINI_API_KEY). Geração de planos desabilitada.');
+    console.warn('[ia] Nenhuma chave de IA configurada. Geração de planos desabilitada.');
 }
-else if (exports.gemini && !exports.openai) {
-    console.log('[ia] Usando Google Gemini como provedor de IA.');
-}
-else if (exports.openai) {
-    console.log('[ia] Usando OpenAI como provedor de IA.');
+else {
+    console.log(`[ia] Provedor ativo: ${exports.gemini ? 'Google Gemini' : 'OpenAI'}`);
 }
 /**
  * Gera texto com o provedor disponível.
- * Prioridade: OpenAI → Gemini
+ * Prioridade: Gemini (gratuito) → OpenAI (fallback)
  */
 async function gerarTextoIA(prompt) {
-    // Tenta OpenAI primeiro
+    // 1. Gemini (gratuito, prioridade)
+    if (exports.gemini) {
+        const model = exports.gemini.getGenerativeModel({ model: exports.GEMINI_MODELO });
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+        // Extrai JSON (Gemini às vezes retorna ```json ... ```)
+        const match = text.match(/```json\s*([\s\S]*?)```/) ?? text.match(/(\{[\s\S]*\})/);
+        return match ? match[1].trim() : text.trim();
+    }
+    // 2. OpenAI (fallback)
     if (exports.openai) {
         const completion = await exports.openai.chat.completions.create({
             model: exports.MODELO,
@@ -42,15 +48,6 @@ async function gerarTextoIA(prompt) {
             temperature: 0.7,
         });
         return completion.choices[0]?.message?.content ?? '{}';
-    }
-    // Fallback para Gemini
-    if (exports.gemini) {
-        const model = exports.gemini.getGenerativeModel({ model: exports.GEMINI_MODELO });
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
-        // Extrai JSON do texto (Gemini pode incluir markdown ```json ... ```)
-        const match = text.match(/```json\s*([\s\S]*?)```/) ?? text.match(/(\{[\s\S]*\})/);
-        return match ? match[1].trim() : text.trim();
     }
     throw new Error('Nenhum provedor de IA configurado. Adicione GEMINI_API_KEY ou OPENAI_API_KEY.');
 }

@@ -6,7 +6,7 @@ export declare const GEMINI_MODELO: string;
 export declare const gemini: GoogleGenerativeAI | null;
 /**
  * Gera texto com o provedor disponível.
- * Prioridade: OpenAI → Gemini
+ * Prioridade: Gemini (gratuito) → OpenAI (fallback)
  */
 export declare function gerarTextoIA(prompt: string): Promise<string>;
 //# sourceMappingURL=openai.d.ts.map
