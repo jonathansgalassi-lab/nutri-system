@@ -152,17 +152,46 @@ exports.planosRouter.post('/:id/aprovar', async (req, res) => {
      SET status = 'aprovado', conteudo = $1, aprovado_em = NOW()
      WHERE id = $2
      RETURNING *`, [JSON.stringify(conteudoFinal), id]);
-    // Publica no Webdiet em background
-    const paciente = await (0, connection_1.queryOne)('SELECT * FROM pacientes WHERE id = $1', [plano.paciente_id]);
+    // Publica no Webdiet em background com dados completos
+    const [paciente, form] = await Promise.all([
+        (0, connection_1.queryOne)('SELECT * FROM pacientes WHERE id = $1', [plano.paciente_id]),
+        (0, connection_1.queryOne)('SELECT * FROM forms_preconsulta WHERE paciente_id = $1 ORDER BY created_at DESC LIMIT 1', [plano.paciente_id]),
+    ]);
     if (paciente) {
+        const respostas = form?.respostas;
+        const dataNasc = paciente.data_nascimento
+            ? new Date(paciente.data_nascimento).toLocaleDateString('pt-BR')
+            : undefined;
         (0, webdiet_1.inserirPacienteWebdiet)({
             nome: paciente.nome,
-            email: paciente.email,
+            email: paciente.email ?? undefined,
             sexo: paciente.sexo,
+            dataNascimento: dataNasc,
+            telefone: paciente.whatsapp,
+            tags: respostas?.objetivo ? `objetivo: ${respostas.objetivo}` : undefined,
+            // Dados da pré-consulta
+            peso: respostas?.peso,
+            altura: respostas?.altura,
+            objetivo: respostas?.objetivo,
+            alergias: respostas?.alergias,
+            medicamentos: respostas?.medicamentos,
+            historicoFamiliar: respostas?.historico_familiar,
+            praticaExercicio: respostas?.pratica_exercicio,
+            tipoExercicio: respostas?.tipo_exercicio,
+            refeicoesPorDia: respostas?.refeicoes_por_dia,
+            alimentosQueGosta: respostas?.alimentos_que_gosta,
+            alimentosQueNaoGosta: respostas?.alimentos_que_nao_gosta,
+            comeFora: respostas?.come_fora,
+            ondeComeFora: respostas?.onde_come_fora,
+            dificuldadesAlimentacao: respostas?.dificuldades_alimentacao,
+            dietasAnteriores: respostas?.dietas_anteriores,
+            expectativas: respostas?.expectativas,
+            // Plano gerado pela IA
+            planoAlimentar: conteudoFinal,
         })
             .then(async () => {
             await (0, connection_1.query)(`UPDATE planos_alimentares SET publicado_webdiet = TRUE, status = 'ativo' WHERE id = $1`, [id]);
-            console.log(`[planos] Plano publicado no Webdiet: ${paciente.nome}`);
+            console.log(`[planos] Plano completo publicado no Webdiet: ${paciente.nome}`);
         })
             .catch((err) => {
             console.error('[planos] Erro ao publicar no Webdiet:', err.message);

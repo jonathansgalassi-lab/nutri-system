@@ -1,3 +1,4 @@
+import { ConteudoPlano } from '../shared/types';
 export interface DadosPacienteWebdiet {
     nome: string;
     apelido?: string;
@@ -23,6 +24,7 @@ export interface DadosPacienteWebdiet {
     dificuldadesAlimentacao?: string;
     dietasAnteriores?: string;
     expectativas?: string;
+    planoAlimentar?: ConteudoPlano;
 }
 export declare function inserirPacienteWebdiet(dados: DadosPacienteWebdiet): Promise<boolean>;
 export interface DadosPagamentoWebdiet {
