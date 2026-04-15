@@ -84,14 +84,11 @@ exports.preconsultaRouter.post('/', async (req, res) => {
         const [form] = await (0, connection_1.query)(`INSERT INTO forms_preconsulta (paciente_id, respostas, status)
        VALUES ($1, $2, 'pendente')
        RETURNING *`, [paciente.id, JSON.stringify(respostas)]);
-        // 3. Notifica a nutricionista via WhatsApp
-        await notificarNutricionista(dados, paciente.id);
-        // 4. Confirma para o paciente
-        await (0, twilio_1.enviarWhatsApp)(dados.whatsapp, `✅ Formulário recebido com sucesso, ${dados.nome.split(' ')[0]}!
-
-Sua nutricionista já vai ter acesso a todas as informações antes da consulta. Você vai ser atendido(a) de forma muito mais personalizada! 🎯
-
-Até logo! 😊`);
+        // 3. Notifica a nutricionista via WhatsApp (não bloqueia)
+        notificarNutricionista(dados, paciente.id)
+            .catch((err) => console.error('[preconsulta] Erro ao notificar nutricionista:', err.message));
+        // 4. Confirma para o paciente (não bloqueia)
+        (0, twilio_1.enviarWhatsApp)(dados.whatsapp, `✅ Formulário recebido com sucesso, ${dados.nome.split(' ')[0]}!\n\nSua nutricionista já vai ter acesso a todas as informações antes da consulta. Você vai ser atendido(a) de forma muito mais personalizada! 🎯\n\nAté logo! 😊`).catch((err) => console.error('[preconsulta] Erro ao confirmar para paciente:', err.message));
         // 5. Tenta inserir no Webdiet em background (não bloqueia a resposta)
         (0, webdiet_1.inserirPacienteWebdiet)({
             nome: dados.nome,
