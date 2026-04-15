@@ -1108,13 +1108,47 @@ async function doLogin() {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
     document.getElementById('mesFiltro').value = new Date().toISOString().slice(0,7);
-    loadDashboard();
+    // Se veio de um link de paciente, abre direto o modal dele
+    const temPaciente = new URLSearchParams(window.location.search).has('paciente');
+    if (temPaciente) { await verificarUrlPaciente(); } else { loadDashboard(); }
   } catch(e) {
     err.textContent = 'Falha na conexão: ' + e.message;
     err.style.display = 'block';
   }
 }
 document.getElementById('loginKey').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+// ── AUTO-ABRIR PACIENTE VIA URL ───────────────────────────────────
+async function verificarUrlPaciente() {
+  const params = new URLSearchParams(window.location.search);
+  const pacienteId = params.get('paciente');
+  if (!pacienteId) return;
+
+  try {
+    // Navega para aba Pacientes
+    const navItem = Array.from(document.querySelectorAll('.nav-item'))
+      .find(el => el.textContent.trim().includes('Pacientes'));
+    showSection('pacientes', navItem);
+
+    // Aguarda a lista carregar
+    await new Promise(res => setTimeout(res, 800));
+
+    // Busca o formulário específico do paciente
+    const r = await api('/api/forms/preconsulta');
+    const forms = r.forms || r || [];
+    const form = forms.find(f => f.paciente_id === pacienteId || f.id === pacienteId);
+
+    if (form) {
+      verPaciente(form);
+      // Limpa o parâmetro da URL sem recarregar
+      window.history.replaceState({}, '', '/admin');
+    } else {
+      toast('Paciente não encontrado', false);
+    }
+  } catch(e) {
+    toast('Erro ao carregar paciente: ' + e.message, false);
+  }
+}
 
 function doLogout() {
   BASE_URL=''; ADMIN_KEY='';

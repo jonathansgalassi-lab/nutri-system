@@ -39,9 +39,9 @@ app.get('/admin', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
 });
 
-// Qualquer sub-rota do admin (ex: /admin/pacientes/:id) redireciona para o painel
-app.get('/admin/*', (_req, res) => {
-  res.redirect('/admin');
+// /admin/pacientes/:id → abre o painel com o paciente pré-selecionado
+app.get('/admin/pacientes/:id', (req, res) => {
+  res.redirect(`/admin?paciente=${req.params.id}`);
 });
 
 app.get('/', (_req, res) => {
