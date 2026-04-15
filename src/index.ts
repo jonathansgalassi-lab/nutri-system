@@ -35,6 +35,14 @@ app.get('/preconsulta', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'preconsulta.html'));
 });
 
+app.get('/admin', (_req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
+});
+
+app.get('/', (_req, res) => {
+  res.redirect('/admin');
+});
+
 // ── Health check ───────────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

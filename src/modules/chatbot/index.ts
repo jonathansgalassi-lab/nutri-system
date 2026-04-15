@@ -16,8 +16,9 @@ chatbotRouter.post('/', async (req: Request, res: Response) => {
       const whatsapp = String(req.body.From).replace('whatsapp:', '');
       const texto = String(req.body.Body).trim();
 
-      console.log(`[chatbot] Twilio | ${whatsapp}: "${texto}"`);
-      await processarMensagem(whatsapp, texto);
+      console.log(`[chatbot] Twilio | ${whatsapp}: "${texto}" (chatbot inativo)`);
+      // Chatbot inativo — resposta automática desabilitada
+      // await processarMensagem(whatsapp, texto);
 
       // Twilio espera TwiML ou 200 vazio
       res.set('Content-Type', 'text/xml');
@@ -29,7 +30,18 @@ chatbotRouter.post('/', async (req: Request, res: Response) => {
     // Evolution envia JSON com estrutura: data.key.remoteJid + data.message.conversation
     if (req.body?.data?.key?.remoteJid) {
       const remoteJid: string = req.body.data.key.remoteJid;
-      const whatsapp = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+
+      // Ignora mensagens de grupos (@g.us), status (@broadcast) e do próprio bot (fromMe)
+      if (!remoteJid.endsWith('@s.whatsapp.net')) {
+        res.sendStatus(200);
+        return;
+      }
+      if (req.body.data.key.fromMe === true) {
+        res.sendStatus(200);
+        return;
+      }
+
+      const whatsapp = remoteJid.replace('@s.whatsapp.net', '');
       const texto =
         req.body.data.message?.conversation ??
         req.body.data.message?.extendedTextMessage?.text ??
@@ -40,8 +52,9 @@ chatbotRouter.post('/', async (req: Request, res: Response) => {
         return;
       }
 
-      console.log(`[chatbot] Evolution | ${whatsapp}: "${texto}"`);
-      await processarMensagem(whatsapp, texto);
+      console.log(`[chatbot] Evolution | ${whatsapp}: "${texto}" (chatbot inativo)`);
+      // Chatbot inativo — resposta automática desabilitada
+      // await processarMensagem(whatsapp, texto);
 
       res.sendStatus(200);
       return;
