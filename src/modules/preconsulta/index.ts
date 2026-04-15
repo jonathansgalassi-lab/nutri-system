@@ -160,6 +160,34 @@ preconsultaRouter.post('/', async (req: Request, res: Response) => {
 
 // ─── GET /api/forms/preconsulta — lista para o painel ────────
 
+// DELETE /api/forms/preconsulta/:paciente_id — exclui paciente e todos os dados vinculados
+preconsultaRouter.delete('/:paciente_id', async (req: Request, res: Response) => {
+  const adminKey = req.headers['x-admin-key'];
+  if (adminKey !== process.env.ADMIN_KEY) {
+    res.status(401).json({ error: 'Não autorizado' });
+    return;
+  }
+
+  const { paciente_id } = req.params;
+
+  try {
+    // Exclui em cascata (ordem importa por FK)
+    await query('DELETE FROM planos_alimentares   WHERE paciente_id = $1', [paciente_id]);
+    await query('DELETE FROM contratos            WHERE paciente_id = $1', [paciente_id]);
+    await query('DELETE FROM forms_preconsulta    WHERE paciente_id = $1', [paciente_id]);
+    await query('DELETE FROM conversas_bot        WHERE whatsapp = (SELECT whatsapp FROM pacientes WHERE id = $1)', [paciente_id]);
+    await query('DELETE FROM consultas            WHERE paciente_id = $1', [paciente_id]);
+    const result = await query('DELETE FROM pacientes WHERE id = $1 RETURNING nome', [paciente_id]);
+
+    const nome = (result as { nome: string }[])[0]?.nome ?? paciente_id;
+    console.log(`[admin] Paciente excluído: ${nome}`);
+    res.json({ ok: true, nome });
+  } catch (err) {
+    console.error('[admin] Erro ao excluir paciente:', err);
+    res.status(500).json({ error: 'Erro ao excluir paciente' });
+  }
+});
+
 preconsultaRouter.get('/', async (_req: Request, res: Response) => {
   const forms = await query(
     `SELECT f.*, p.nome, p.whatsapp

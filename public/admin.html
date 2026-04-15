@@ -1280,7 +1280,10 @@ async function loadPacientes() {
         <td>${x.whatsapp||x.telefone||'—'}</td>
         <td>${x.objetivo?badge(x.objetivo.substring(0,28),'silver'):'—'}</td>
         <td>${fmtData(x.created_at||x.data_envio)}</td>
-        <td><button onclick='verPaciente(${JSON.stringify(x).replace(/'/g,"&#39;")})' class="btn btn-outline btn-sm">Ver detalhes</button></td>
+        <td style="display:flex;gap:.375rem">
+          <button onclick='verPaciente(${JSON.stringify(x).replace(/'/g,"&#39;")})' class="btn btn-outline btn-sm">Ver</button>
+          <button onclick="excluirPaciente('${x.paciente_id}','${(x.nome||'').replace(/'/g,"\\'")}',this)" class="btn btn-danger btn-sm">Excluir</button>
+        </td>
       </tr>`).join('')}</tbody>
     </table>`;
   } catch(e) { document.getElementById('tabelaPacientes').innerHTML=`<p style="color:var(--red);padding:1rem;font-size:.82rem">Erro: ${e.message}</p>`; }
@@ -1432,6 +1435,30 @@ async function carregarPacientesSelect(...ids) {
       const sel = document.getElementById(id);
       if (sel) sel.innerHTML = '<option value="">Erro ao carregar pacientes</option>';
     });
+  }
+}
+
+// ── EXCLUIR PACIENTE ─────────────────────────────────────────────
+async function excluirPaciente(pacienteId, nome, btn) {
+  if (!confirm(`Excluir "${nome}" permanentemente?\n\nIsso remove todos os dados: formulários, planos, contratos e conversas.`)) return;
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    const r = await fetch(`${BASE_URL}/api/forms/preconsulta/${pacienteId}`, {
+      method: 'DELETE',
+      headers: { 'x-admin-key': ADMIN_KEY }
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) {
+      toast(`"${d.nome}" excluído com sucesso`);
+      loadPacientes();
+    } else {
+      toast(d.error || 'Erro ao excluir', false);
+      btn.disabled = false; btn.textContent = 'Excluir';
+    }
+  } catch(e) {
+    toast('Erro: ' + e.message, false);
+    btn.disabled = false; btn.textContent = 'Excluir';
   }
 }
 
