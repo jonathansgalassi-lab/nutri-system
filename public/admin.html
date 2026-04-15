@@ -731,10 +731,16 @@
             <div class="page-title">Agenda</div>
             <div class="page-sub">Horários e consultas agendadas</div>
           </div>
-          <button class="btn btn-outline btn-sm" onclick="loadAgenda()">
-            <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            Atualizar
-          </button>
+          <div class="page-actions">
+            <button class="btn btn-gold btn-sm" onclick="abrirModalAgendarConsulta()">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Agendar Consulta
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="loadAgenda()">
+              <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Atualizar
+            </button>
+          </div>
         </div>
         <div class="grid-2">
           <div class="card">
@@ -761,10 +767,16 @@
             <div class="page-title">Pacientes</div>
             <div class="page-sub">Formulários de pré-consulta recebidos</div>
           </div>
-          <button class="btn btn-outline btn-sm" onclick="loadPacientes()">
-            <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            Atualizar
-          </button>
+          <div class="page-actions">
+            <button class="btn btn-gold btn-sm" onclick="abrirModalNovoPaciente()">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Novo Paciente
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="loadPacientes()">
+              <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Atualizar
+            </button>
+          </div>
         </div>
         <div class="card">
           <div class="table-wrap" id="tabelaPacientes"><div class="spinner"></div></div>
@@ -778,10 +790,16 @@
             <div class="page-title">Planos Alimentares</div>
             <div class="page-sub">Gerados pela IA — revisão e aprovação</div>
           </div>
-          <button class="btn btn-outline btn-sm" onclick="loadPlanos()">
-            <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            Atualizar
-          </button>
+          <div class="page-actions">
+            <button class="btn btn-gold btn-sm" onclick="abrirModalGerarPlano()">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Gerar Plano
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="loadPlanos()">
+              <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Atualizar
+            </button>
+          </div>
         </div>
         <div class="card">
           <div class="table-wrap" id="tabelaPlanos"><div class="spinner"></div></div>
@@ -797,6 +815,10 @@
           </div>
           <div class="page-actions">
             <input type="month" id="mesFiltro" class="inp" style="width:auto;padding:.42rem .75rem;font-size:.78rem" onchange="loadFinanceiro()">
+            <button class="btn btn-gold btn-sm" onclick="abrirModalNovoContrato()">
+              <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Novo Contrato
+            </button>
             <button class="btn btn-outline btn-sm" onclick="loadFinanceiro()">
               <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
               Atualizar
@@ -863,6 +885,182 @@
       </div>
 
     </main>
+  </div>
+</div>
+
+<!-- ══ MODAL AGENDAR CONSULTA ══════════════════════════════ -->
+<div id="modalAgendarConsulta" class="overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Agendar Consulta</div>
+      <button class="modal-close" onclick="document.getElementById('modalAgendarConsulta').classList.add('hidden')">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      <div class="modal-field" style="grid-column:1/-1">
+        <div class="modal-label">Paciente</div>
+        <select id="agPaciente" class="inp">
+          <option value="">Carregando...</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Data e Hora</div>
+        <input id="agDataHora" class="inp" type="datetime-local">
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Tipo</div>
+        <select id="agTipo" class="inp">
+          <option value="inicial">Consulta Inicial</option>
+          <option value="retorno">Retorno</option>
+          <option value="online">Online</option>
+        </select>
+      </div>
+      <div class="modal-field" style="grid-column:1/-1">
+        <div class="modal-label">Local</div>
+        <input id="agLocal" class="inp" type="text" placeholder="Ex: Av. Cícero Bittencourt, 496 — Sala 6">
+      </div>
+      <div class="modal-field" style="grid-column:1/-1">
+        <div class="modal-label">Observações</div>
+        <textarea id="agNotas" class="inp" rows="2" placeholder="Informações adicionais..."></textarea>
+      </div>
+    </div>
+    <div style="margin-top:1.25rem;display:flex;gap:.625rem;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="document.getElementById('modalAgendarConsulta').classList.add('hidden')">Cancelar</button>
+      <button class="btn btn-gold" onclick="salvarAgendamento()">Agendar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL NOVO PACIENTE ══════════════════════════════════ -->
+<div id="modalNovoPaciente" class="overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Novo Paciente</div>
+      <button class="modal-close" onclick="document.getElementById('modalNovoPaciente').classList.add('hidden')">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      <div class="modal-field"><div class="modal-label">Nome completo *</div><input id="npNome" class="inp" type="text" placeholder="João da Silva"></div>
+      <div class="modal-field"><div class="modal-label">WhatsApp *</div><input id="npWhatsapp" class="inp" type="text" placeholder="5543999888777"></div>
+      <div class="modal-field"><div class="modal-label">E-mail</div><input id="npEmail" class="inp" type="email" placeholder="joao@email.com"></div>
+      <div class="modal-field"><div class="modal-label">Data de Nascimento *</div><input id="npNasc" class="inp" type="date"></div>
+      <div class="modal-field"><div class="modal-label">Sexo *</div>
+        <select id="npSexo" class="inp"><option value="M">Masculino</option><option value="F">Feminino</option></select>
+      </div>
+      <div class="modal-field"><div class="modal-label">Peso (kg) *</div><input id="npPeso" class="inp" type="number" step="0.1" placeholder="70"></div>
+      <div class="modal-field"><div class="modal-label">Altura (cm) *</div><input id="npAltura" class="inp" type="number" placeholder="170"></div>
+      <div class="modal-field"><div class="modal-label">Objetivo *</div><input id="npObjetivo" class="inp" type="text" placeholder="Perda de peso, ganho de massa..."></div>
+      <div class="modal-field"><div class="modal-label">Refeições por dia *</div><input id="npRefeicoes" class="inp" type="number" min="1" max="10" placeholder="4"></div>
+      <div class="modal-field"><div class="modal-label">Come fora *</div>
+        <select id="npComeFora" class="inp">
+          <option value="nunca">Nunca</option>
+          <option value="1-2x/sem">1-2x por semana</option>
+          <option value="3-4x/sem">3-4x por semana</option>
+          <option value="diariamente">Diariamente</option>
+        </select>
+      </div>
+      <div class="modal-field"><div class="modal-label">Pratica exercício *</div>
+        <select id="npExercicio" class="inp">
+          <option value="não">Não</option>
+          <option value="1-2x/sem">1-2x por semana</option>
+          <option value="3-4x/sem">3-4x por semana</option>
+          <option value="5+/sem">5+ por semana</option>
+        </select>
+      </div>
+      <div class="modal-field"><div class="modal-label">Tipo de exercício</div><input id="npTipoExercicio" class="inp" type="text" placeholder="Musculação, caminhada..."></div>
+      <div class="modal-field" style="grid-column:1/-1"><div class="modal-label">Alimentos que gosta</div><input id="npGosta" class="inp" type="text" placeholder="Frango, arroz, frutas..."></div>
+      <div class="modal-field" style="grid-column:1/-1"><div class="modal-label">Alimentos que não gosta</div><input id="npNaoGosta" class="inp" type="text" placeholder="Fígado, brócolis..."></div>
+      <div class="modal-field" style="grid-column:1/-1"><div class="modal-label">Alergias / Intolerâncias</div><input id="npAlergias" class="inp" type="text" placeholder="Lactose, glúten..."></div>
+      <div class="modal-field" style="grid-column:1/-1"><div class="modal-label">Medicamentos em uso</div><input id="npMedicamentos" class="inp" type="text" placeholder="Nenhum..."></div>
+      <div class="modal-field" style="grid-column:1/-1"><div class="modal-label">Expectativas</div><textarea id="npExpectativas" class="inp" rows="2" placeholder="O que espera do acompanhamento..."></textarea></div>
+    </div>
+    <div style="margin-top:1.25rem;display:flex;gap:.625rem;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="document.getElementById('modalNovoPaciente').classList.add('hidden')">Cancelar</button>
+      <button class="btn btn-gold" onclick="salvarNovoPaciente()">Cadastrar Paciente</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL GERAR PLANO ════════════════════════════════════ -->
+<div id="modalGerarPlano" class="overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Gerar Plano Alimentar</div>
+      <button class="modal-close" onclick="document.getElementById('modalGerarPlano').classList.add('hidden')">✕</button>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Paciente</div>
+      <select id="gpPaciente" class="inp"><option value="">Carregando...</option></select>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Protocolo</div>
+      <select id="gpProtocolo" class="inp">
+        <option value="standard">Padrão</option>
+        <option value="low_carb">Low Carb</option>
+        <option value="hipertrofia">Hipertrofia</option>
+        <option value="emagrecimento">Emagrecimento</option>
+        <option value="vegetariano">Vegetariano</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Observações adicionais</div>
+      <textarea id="gpObs" class="inp" rows="3" placeholder="Instruções extras para a IA..."></textarea>
+    </div>
+    <div id="gpStatus" style="font-size:.8rem;color:var(--silver);margin-top:.5rem;display:none">
+      <div class="spinner" style="margin:.5rem auto"></div>
+      <p style="text-align:center">Gerando plano com IA... aguarde</p>
+    </div>
+    <div style="margin-top:1.25rem;display:flex;gap:.625rem;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="document.getElementById('modalGerarPlano').classList.add('hidden')">Cancelar</button>
+      <button class="btn btn-gold" id="btnGerarPlano" onclick="salvarGerarPlano()">Gerar com IA</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL NOVO CONTRATO ══════════════════════════════════ -->
+<div id="modalNovoContrato" class="overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Novo Contrato</div>
+      <button class="modal-close" onclick="document.getElementById('modalNovoContrato').classList.add('hidden')">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+      <div class="modal-field" style="grid-column:1/-1">
+        <div class="modal-label">Paciente</div>
+        <select id="ncPaciente" class="inp"><option value="">Carregando...</option></select>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Plano</div>
+        <select id="ncPlano" class="inp" onchange="preencherValorPlano(this.value)">
+          <option value="inicial">Inicial (3 meses)</option>
+          <option value="acompanhamento">Acompanhamento (6 meses)</option>
+          <option value="premium">Premium (12 meses)</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Valor total (R$)</div>
+        <input id="ncValor" class="inp" type="number" step="0.01" placeholder="1140.00">
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Início</div>
+        <input id="ncInicio" class="inp" type="date">
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Término</div>
+        <input id="ncFim" class="inp" type="date">
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Forma de pagamento</div>
+        <select id="ncPagamento" class="inp">
+          <option value="pix">PIX</option>
+          <option value="cartao">Cartão de crédito</option>
+          <option value="boleto">Boleto</option>
+          <option value="dinheiro">Dinheiro</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:1.25rem;display:flex;gap:.625rem;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="document.getElementById('modalNovoContrato').classList.add('hidden')">Cancelar</button>
+      <button class="btn btn-gold" onclick="salvarNovoContrato()">Criar Contrato</button>
+    </div>
   </div>
 </div>
 
@@ -1181,6 +1379,183 @@ async function resetarConversa() {
     d.ok?toast(`Conversa de ${n} resetada!`):toast('Número não encontrado',false);
   } catch(e){toast('Erro: '+e.message,false);}
 }
+
+// ── CARREGAR PACIENTES (select) ──────────────────────────────────
+async function carregarPacientesSelect(...ids) {
+  try {
+    const r = await api('/api/forms/preconsulta');
+    const lista = r.forms || r || [];
+    ids.forEach(id => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      const atual = sel.value;
+      sel.innerHTML = '<option value="">Selecione um paciente...</option>' +
+        lista.map(p => `<option value="${p.paciente_id||p.id||''}" data-wpp="${p.whatsapp||''}">${p.nome||'—'} ${p.whatsapp?'· '+p.whatsapp:''}</option>`).join('');
+      if (atual) sel.value = atual;
+    });
+  } catch(e) {
+    ids.forEach(id => {
+      const sel = document.getElementById(id);
+      if (sel) sel.innerHTML = '<option value="">Erro ao carregar pacientes</option>';
+    });
+  }
+}
+
+// ── MODAL AGENDAR CONSULTA ───────────────────────────────────────
+function abrirModalAgendarConsulta() {
+  // pré-preenche data/hora com agora + 1h
+  const d = new Date(); d.setHours(d.getHours()+1, 0, 0, 0);
+  document.getElementById('agDataHora').value = d.toISOString().slice(0,16);
+  document.getElementById('agLocal').value = 'Nova Santa Bárbara - Av. Cícero Bittencourt Rodrigues, 496, Sala 6';
+  document.getElementById('agNotas').value = '';
+  carregarPacientesSelect('agPaciente');
+  document.getElementById('modalAgendarConsulta').classList.remove('hidden');
+}
+
+async function salvarAgendamento() {
+  const paciente_id = document.getElementById('agPaciente').value;
+  const data_hora   = document.getElementById('agDataHora').value;
+  const tipo        = document.getElementById('agTipo').value;
+  const local       = document.getElementById('agLocal').value;
+  const notas       = document.getElementById('agNotas').value;
+  if (!paciente_id) { toast('Selecione um paciente', false); return; }
+  if (!data_hora)   { toast('Informe a data e hora', false); return; }
+  try {
+    await api('/api/agenda/agendar', {
+      method: 'POST',
+      body: JSON.stringify({ paciente_id, data_hora, tipo, local, notas })
+    });
+    toast('Consulta agendada com sucesso!');
+    document.getElementById('modalAgendarConsulta').classList.add('hidden');
+    loadAgenda();
+  } catch(e) { toast('Erro: ' + e.message, false); }
+}
+
+// ── MODAL NOVO PACIENTE ──────────────────────────────────────────
+function abrirModalNovoPaciente() {
+  ['npNome','npWhatsapp','npEmail','npObjetivo','npTipoExercicio','npGosta','npNaoGosta','npAlergias','npMedicamentos','npExpectativas']
+    .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('npPeso').value = '';
+  document.getElementById('npAltura').value = '';
+  document.getElementById('npRefeicoes').value = '';
+  document.getElementById('npNasc').value = '';
+  document.getElementById('modalNovoPaciente').classList.remove('hidden');
+}
+
+async function salvarNovoPaciente() {
+  const body = {
+    nome:                  document.getElementById('npNome').value.trim(),
+    whatsapp:              document.getElementById('npWhatsapp').value.trim().replace(/\D/g,''),
+    email:                 document.getElementById('npEmail').value.trim(),
+    data_nascimento:       document.getElementById('npNasc').value,
+    sexo:                  document.getElementById('npSexo').value,
+    peso:                  parseFloat(document.getElementById('npPeso').value),
+    altura:                parseFloat(document.getElementById('npAltura').value),
+    objetivo:              document.getElementById('npObjetivo').value.trim(),
+    refeicoes_por_dia:     parseInt(document.getElementById('npRefeicoes').value),
+    come_fora:             document.getElementById('npComeFora').value,
+    pratica_exercicio:     document.getElementById('npExercicio').value,
+    tipo_exercicio:        document.getElementById('npTipoExercicio').value.trim(),
+    alimentos_que_gosta:   document.getElementById('npGosta').value.trim(),
+    alimentos_que_nao_gosta: document.getElementById('npNaoGosta').value.trim(),
+    alergias:              document.getElementById('npAlergias').value.trim(),
+    medicamentos:          document.getElementById('npMedicamentos').value.trim(),
+    expectativas:          document.getElementById('npExpectativas').value.trim(),
+  };
+  if (!body.nome || !body.whatsapp || !body.data_nascimento || !body.objetivo) {
+    toast('Preencha os campos obrigatórios (*)', false); return;
+  }
+  try {
+    await api('/api/forms/preconsulta', { method: 'POST', body: JSON.stringify(body) });
+    toast('Paciente cadastrado com sucesso!');
+    document.getElementById('modalNovoPaciente').classList.add('hidden');
+    loadPacientes();
+  } catch(e) { toast('Erro: ' + e.message, false); }
+}
+
+// ── MODAL GERAR PLANO ────────────────────────────────────────────
+function abrirModalGerarPlano() {
+  document.getElementById('gpObs').value = '';
+  document.getElementById('gpStatus').style.display = 'none';
+  document.getElementById('btnGerarPlano').disabled = false;
+  carregarPacientesSelect('gpPaciente');
+  document.getElementById('modalGerarPlano').classList.remove('hidden');
+}
+
+async function salvarGerarPlano() {
+  const paciente_id = document.getElementById('gpPaciente').value;
+  const protocolo   = document.getElementById('gpProtocolo').value;
+  const observacoes = document.getElementById('gpObs').value.trim();
+  if (!paciente_id) { toast('Selecione um paciente', false); return; }
+  document.getElementById('gpStatus').style.display = 'block';
+  document.getElementById('btnGerarPlano').disabled = true;
+  try {
+    await api('/api/planos/gerar', {
+      method: 'POST',
+      body: JSON.stringify({ paciente_id, protocolo, observacoes })
+    });
+    toast('Plano gerado com sucesso!');
+    document.getElementById('modalGerarPlano').classList.add('hidden');
+    loadPlanos();
+  } catch(e) {
+    toast('Erro: ' + e.message, false);
+    document.getElementById('gpStatus').style.display = 'none';
+    document.getElementById('btnGerarPlano').disabled = false;
+  }
+}
+
+// ── MODAL NOVO CONTRATO ──────────────────────────────────────────
+const valoresPlano = { inicial: 1140, acompanhamento: 2100, premium: 3960 };
+const mesesPlano   = { inicial: 3, acompanhamento: 6, premium: 12 };
+
+function preencherValorPlano(plano) {
+  document.getElementById('ncValor').value = valoresPlano[plano] || '';
+  const inicio = document.getElementById('ncInicio').value;
+  if (inicio) calcularFimContrato(inicio, plano);
+}
+
+function calcularFimContrato(inicio, plano) {
+  if (!inicio || !plano) return;
+  const d = new Date(inicio);
+  d.setMonth(d.getMonth() + (mesesPlano[plano] || 3));
+  document.getElementById('ncFim').value = d.toISOString().slice(0,10);
+}
+
+function abrirModalNovoContrato() {
+  const hoje = new Date().toISOString().slice(0,10);
+  document.getElementById('ncInicio').value = hoje;
+  document.getElementById('ncPlano').value  = 'inicial';
+  preencherValorPlano('inicial');
+  carregarPacientesSelect('ncPaciente');
+  document.getElementById('modalNovoContrato').classList.remove('hidden');
+}
+
+async function salvarNovoContrato() {
+  const paciente_id     = document.getElementById('ncPaciente').value;
+  const plano           = document.getElementById('ncPlano').value;
+  const valor           = parseFloat(document.getElementById('ncValor').value);
+  const data_inicio     = document.getElementById('ncInicio').value;
+  const data_fim        = document.getElementById('ncFim').value;
+  const forma_pagamento = document.getElementById('ncPagamento').value;
+  if (!paciente_id) { toast('Selecione um paciente', false); return; }
+  if (!data_inicio || !data_fim) { toast('Informe as datas', false); return; }
+  if (!valor || valor <= 0)      { toast('Informe o valor', false); return; }
+  try {
+    await api('/api/contratos', {
+      method: 'POST',
+      body: JSON.stringify({ paciente_id, plano, valor, data_inicio, data_fim, forma_pagamento })
+    });
+    toast('Contrato criado com sucesso!');
+    document.getElementById('modalNovoContrato').classList.add('hidden');
+    loadFinanceiro();
+  } catch(e) { toast('Erro: ' + e.message, false); }
+}
+
+// ── AUTO-CALCULAR DATA FIM ───────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const ini = document.getElementById('ncInicio');
+  if (ini) ini.addEventListener('change', e => calcularFimContrato(e.target.value, document.getElementById('ncPlano').value));
+});
 
 async function enviarMensagem() {
   const n = document.getElementById('enviarNumero').value.trim().replace(/\D/g,'');
