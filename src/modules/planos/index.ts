@@ -250,7 +250,11 @@ planosRouter.post('/:id/aprovar', async (req: Request, res: Response) => {
       // Plano gerado pela IA
       planoAlimentar: conteudoFinal as ConteudoPlano,
     })
-      .then(async () => {
+      .then(async (sucesso) => {
+        if (!sucesso) {
+          console.warn(`[planos] inserirPacienteWebdiet retornou false para ${paciente.nome} — publicado_webdiet NÃO atualizado`);
+          return;
+        }
         await query(
           `UPDATE planos_alimentares SET publicado_webdiet = TRUE, status = 'ativo' WHERE id = $1`,
           [id]

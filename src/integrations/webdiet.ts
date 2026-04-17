@@ -394,22 +394,27 @@ async function criarPrescricaoAlimentar(page: Page, dados: DadosPacienteWebdiet)
   const semana = plano.plano.semana_1_4 as unknown as Record<string, OpcaoRefeicao[]>;
   const refeicoesFiltradas = refeicoesCfg.filter(r => semana[r.chave]?.length);
 
-  // Helper: clica num elemento pelo texto exato, com retry até timeout
-  const clicarTextoExato = async (texto: string, timeout = 5000): Promise<boolean> => {
+  // Helper: clica num elemento pelo texto exato ou parcial, com retry até timeout
+  const clicarTextoExato = async (texto: string, timeout = 6000, parcial = false): Promise<boolean> => {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
-      const ok = await page.evaluate((t) => {
-        const el = Array.from(document.querySelectorAll<HTMLElement>('*'))
-          .find(e => e.children.length === 0 && e.textContent?.trim() === t && (e as HTMLElement).offsetWidth > 0);
+      const ok = await page.evaluate((t, p) => {
+        const todos = Array.from(document.querySelectorAll<HTMLElement>('*'))
+          .filter(e => (e as HTMLElement).offsetWidth > 0);
+        // 1. Texto exato em elemento sem filhos (texto puro)
+        const el = todos.find(e => e.children.length === 0 &&
+          (p ? e.textContent?.toLowerCase().includes(t.toLowerCase())
+             : e.textContent?.trim() === t));
         if (el) { el.click(); return true; }
-        // fallback: qualquer elemento com esse texto exato visível
-        const el2 = Array.from(document.querySelectorAll<HTMLElement>('*'))
-          .find(e => e.textContent?.trim() === t && (e as HTMLElement).offsetWidth > 0);
+        // 2. textContent completo do elemento (botão com ícone dentro)
+        const el2 = todos.find(e =>
+          p ? e.textContent?.toLowerCase().includes(t.toLowerCase())
+            : e.textContent?.trim() === t);
         if (el2) { el2.click(); return true; }
         return false;
-      }, texto);
+      }, texto, parcial);
       if (ok) return true;
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 350));
     }
     return false;
   };
