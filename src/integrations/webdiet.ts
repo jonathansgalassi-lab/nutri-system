@@ -362,36 +362,60 @@ async function buscarEAbrirPaciente(page: Page, nome: string, telefone?: string)
   return achou;
 }
 
-// ─── Cria prescrição qualitativa com o plano da IA ───────────
-// Fluxo real (mapeado via browser):
+// ─── Cria prescrição "Por alimentos" com o plano da IA ───────
+// Fluxo real (mapeado via browser em metodoPlanning.php):
 //   1. Clica "Planejamento alimentar"
-//   2. Clica "nova prescrição alimentar" → modal: nome + metodologia
-//   3. Preenche nome, seleciona "Qualitativa", clica "avançar"
-//   4. Modal de modelo: "Criar planejamento em branco" já selecionado → "confirmar"
-//   5. Navega para /metodoQualitativo.php?id=XXX
-//   6. Página tem 4 slots vazios ("Clique para editar o nome")
-//   7. Para cada refeição: clica no slot → preenche nome + horário → clica "nova prescrição" → digita no editor rico
-//   8. Usa "+ adicionar nova refeição em branco" para slots extras (acima de 4)
-//   9. Clica "salvar alterações e ver planejamento"
+//   2. Clica "nova prescrição alimentar" → modal: nome + "Por alimentos" (já default)
+//   3. Clica "avançar" → modal de modelo: "Criar planejamento em branco" já selecionado
+//   4. Clica "confirmar" → navega para /metodoPlanning.php?id=XXX
+//   5. Para cada refeição:
+//      a. Clica "nova refeição ou hábito" → popup → clica "criar nova refeição"
+//      b. Dialog "Qual nome da refeição?": clica sugestão rápida OU preenche Horário + Nome + confirmar
+//      c. Modal do editor de refeição abre automaticamente
+//      d. Insere o conteúdo do plano da IA na área "Observações da refeição" (contenteditable)
+//      e. Fecha o modal (Escape)
+//   6. O plano salva automaticamente via API
 
 async function criarPrescricaoAlimentar(page: Page, dados: DadosPacienteWebdiet): Promise<void> {
   const plano = dados.planoAlimentar;
   if (!plano) return;
 
+  // Mapeamento das refeições do plano da IA para as sugestões rápidas do WebDiet
+  // sugestao: texto exato da sugestão rápida (ou null para preenchimento manual)
   const refeicoesCfg = [
-    { chave: 'cafe_manha',   nome: 'Café da Manhã',   horario: '07:00' },
-    { chave: 'lanche_manha', nome: 'Lanche da Manhã', horario: '10:00' },
-    { chave: 'almoco',       nome: 'Almoço',           horario: '12:30' },
-    { chave: 'lanche_tarde', nome: 'Lanche da Tarde', horario: '15:30' },
-    { chave: 'jantar',       nome: 'Jantar',           horario: '19:00' },
-    { chave: 'ceia',         nome: 'Ceia',             horario: '21:30' },
+    { chave: 'cafe_manha',   nome: 'Café da Manhã',   horario: '07:00', sugestao: '08:00 - Café da manhã' },
+    { chave: 'lanche_manha', nome: 'Lanche da Manhã', horario: '10:00', sugestao: null },
+    { chave: 'almoco',       nome: 'Almoço',           horario: '12:30', sugestao: '13:00 - Almoço' },
+    { chave: 'lanche_tarde', nome: 'Lanche da Tarde', horario: '15:30', sugestao: '17:00 - Lanche' },
+    { chave: 'jantar',       nome: 'Jantar',           horario: '19:00', sugestao: '21:00 - Jantar' },
+    { chave: 'ceia',         nome: 'Ceia',             horario: '21:30', sugestao: null },
   ];
 
   const semana = plano.plano.semana_1_4 as unknown as Record<string, OpcaoRefeicao[]>;
   const refeicoesFiltradas = refeicoesCfg.filter(r => semana[r.chave]?.length);
 
+  // Helper: clica num elemento pelo texto exato, com retry até timeout
+  const clicarTextoExato = async (texto: string, timeout = 5000): Promise<boolean> => {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const ok = await page.evaluate((t) => {
+        const el = Array.from(document.querySelectorAll<HTMLElement>('*'))
+          .find(e => e.children.length === 0 && e.textContent?.trim() === t && (e as HTMLElement).offsetWidth > 0);
+        if (el) { el.click(); return true; }
+        // fallback: qualquer elemento com esse texto exato visível
+        const el2 = Array.from(document.querySelectorAll<HTMLElement>('*'))
+          .find(e => e.textContent?.trim() === t && (e as HTMLElement).offsetWidth > 0);
+        if (el2) { el2.click(); return true; }
+        return false;
+      }, texto);
+      if (ok) return true;
+      await new Promise(r => setTimeout(r, 300));
+    }
+    return false;
+  };
+
   try {
-    // ── 1. Abre Planejamento alimentar ──
+    // ── 1. Abre "Planejamento alimentar" ──
     await esperarEClicar(page, 'Planejamento alimentar');
     await new Promise(r => setTimeout(r, 1500));
 
@@ -399,10 +423,9 @@ async function criarPrescricaoAlimentar(page: Page, dados: DadosPacienteWebdiet)
     await esperarEClicar(page, 'nova prescrição alimentar');
     await new Promise(r => setTimeout(r, 2000));
 
-    // ── 3. Preenche nome da prescrição no modal ──
+    // ── 3. Preenche nome da prescrição ("Por alimentos" já é o método padrão) ──
     const nomePrescricao = `Plano IA — ${dados.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
     await page.evaluate((nome) => {
-      // O placeholder real é "Nome da prescrição (Ex. Cardápio semanal)"
       const input = document.querySelector<HTMLInputElement>(
         'input[placeholder*="Nome da prescrição"], input[placeholder*="Cardápio"], input[placeholder*="prescrição"]'
       );
@@ -413,143 +436,119 @@ async function criarPrescricaoAlimentar(page: Page, dados: DadosPacienteWebdiet)
       }
     }, nomePrescricao);
 
-    // ── 4. Seleciona metodologia "Qualitativa" ──
-    await page.evaluate(() => {
-      const items = Array.from(document.querySelectorAll<HTMLElement>('*'));
-      items.find(el => el.textContent?.trim() === 'Qualitativa')?.click();
-    });
-    await new Promise(r => setTimeout(r, 500));
-
-    // ── 5. Avança ──
-    await page.evaluate(() => {
-      const btns = Array.from(document.querySelectorAll<HTMLElement>('button, *'));
-      btns.find(el => el.textContent?.trim() === 'avançar')?.click();
-    });
+    // ── 4. "Por alimentos" já está selecionado por padrão → avançar ──
+    await clicarTextoExato('avançar');
     await new Promise(r => setTimeout(r, 1500));
 
-    // ── 6. "Criar planejamento em branco" já está selecionado → confirmar ──
-    await page.evaluate(() => {
-      const btns = Array.from(document.querySelectorAll<HTMLElement>('button, *'));
-      btns.find(el => el.textContent?.trim() === 'confirmar')?.click();
-    });
+    // ── 5. "Criar planejamento em branco" já selecionado → confirmar ──
+    await clicarTextoExato('confirmar');
 
-    // ── 7. Aguarda navegar para /metodoQualitativo.php ──
+    // ── 6. Aguarda navegação para metodoPlanning.php ──
     await page.waitForFunction(
-      () => window.location.href.includes('metodoQualitativo'),
-      { timeout: 20000 }
+      () => window.location.href.includes('metodoPlanning'),
+      { timeout: 25000 }
     );
-    await new Promise(r => setTimeout(r, 2500));
-    console.log(`[webdiet] Editor qualitativo carregado: ${page.url()}`);
+    await new Promise(r => setTimeout(r, 3000));
+    console.log(`[webdiet] Editor Por Alimentos carregado: ${page.url()}`);
 
-    // ── 8. Preenche cada refeição ──
-    for (let idx = 0; idx < refeicoesFiltradas.length; idx++) {
-      const { chave, nome, horario } = refeicoesFiltradas[idx];
+    // ── 7. Adiciona cada refeição ──
+    for (const { chave, nome, horario, sugestao } of refeicoesFiltradas) {
       const opcoes = semana[chave];
 
-      // Se precisar de slot extra (já vêm 4 pré-criados), adiciona um novo
-      if (idx >= 4) {
-        await page.evaluate(() => {
-          const btns = Array.from(document.querySelectorAll<HTMLElement>('*'));
-          btns.find(el => el.textContent?.includes('adicionar nova refeição em branco'))?.click();
-        });
-        await new Promise(r => setTimeout(r, 1000));
+      // ── 7a. Clica "nova refeição ou hábito" ──
+      await clicarTextoExato('nova refeição ou hábito');
+      await new Promise(r => setTimeout(r, 1000));
+
+      // ── 7b. No popup "O que gostaria de fazer?" → clica "criar nova refeição" ──
+      await clicarTextoExato('criar nova refeição');
+      await new Promise(r => setTimeout(r, 1000));
+
+      // ── 7c. Dialog "Qual nome da refeição?" ──
+      if (sugestao) {
+        // Usa sugestão rápida (abre o editor automaticamente)
+        await clicarTextoExato(sugestao);
+      } else {
+        // Preenche manualmente: clica "Horário" tab → preenche → clica "Nome da refeição" tab → preenche → confirmar
+        await clicarTextoExato('Horário');
+        await new Promise(r => setTimeout(r, 300));
+        await page.evaluate((h) => {
+          const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
+            .filter(el => (el as HTMLElement).offsetWidth > 0);
+          const timeInput = inputs.find(el => el.type === 'time' || /^\d{2}:\d{2}$/.test(el.value) || el.placeholder?.includes(':'))
+            ?? inputs[0];
+          if (timeInput) {
+            timeInput.focus(); timeInput.value = h;
+            timeInput.dispatchEvent(new Event('input', { bubbles: true }));
+            timeInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }, horario);
+
+        await clicarTextoExato('Nome da refeição');
+        await new Promise(r => setTimeout(r, 300));
+        await page.evaluate((n) => {
+          const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'))
+            .filter(el => (el as HTMLElement).offsetWidth > 0 && !el.value);
+          const nameInput = inputs[inputs.length - 1];
+          if (nameInput) {
+            nameInput.focus(); nameInput.value = n;
+            nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+            nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }, nome);
+
+        await clicarTextoExato('confirmar');
       }
 
-      // Clica no texto "Clique para editar o nome" do slot pelo índice
-      await page.evaluate((slotIdx) => {
-        const slots = Array.from(document.querySelectorAll<HTMLElement>('*'))
-          .filter(el => el.textContent?.trim() === 'Clique para editar o nome' && el.offsetWidth > 0);
-        if (slots[slotIdx]) slots[slotIdx].click();
-        else if (slots[0]) slots[0].click(); // fallback
-      }, idx < 4 ? idx : 0);
-      await new Promise(r => setTimeout(r, 600));
+      // ── 7d. Aguarda o modal do editor de refeição abrir ──
+      await new Promise(r => setTimeout(r, 2500));
 
-      // Preenche horário (input de texto "00:00")
-      await page.evaluate((mealTime) => {
-        const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
-          .filter(el => el.offsetWidth > 0 && (el.value === '00:00' || el.placeholder === '00:00' || el.type === 'time'));
-        const last = inputs[inputs.length - 1];
-        if (last) {
-          last.focus(); last.value = mealTime;
-          last.dispatchEvent(new Event('input', { bubbles: true }));
-          last.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      }, horario);
-
-      // Preenche nome da rotina (textbox "Nome da rotina")
-      await page.evaluate((mealName) => {
-        const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'))
-          .filter(el => el.offsetWidth > 0 && (el.placeholder?.includes('Nome') || el.placeholder?.includes('rotina') || !el.value));
-        const last = inputs[inputs.length - 1];
-        if (last) {
-          last.focus();
-          // Limpa e define o valor
-          last.value = '';
-          last.dispatchEvent(new Event('input', { bubbles: true }));
-          last.value = mealName;
-          last.dispatchEvent(new Event('input', { bubbles: true }));
-          last.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      }, nome);
-      await new Promise(r => setTimeout(r, 400));
-
-      // ── Clica em "nova prescrição" desta refeição ──
-      // O botão "nova prescrição" fica na mesma linha do slot ativo
-      await page.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll<HTMLElement>('*'))
-          .filter(el => el.textContent?.trim() === 'nova prescrição' && el.offsetWidth > 0);
-        // Clica no primeiro botão visível
-        if (btns.length > 0) btns[0].click();
-      });
-      await new Promise(r => setTimeout(r, 1500));
-
-      // ── Monta conteúdo HTML para o editor rico ──
-      const conteudoHtml = opcoes.slice(0, 3).map((op, i) =>
+      // ── 7e. Monta HTML com as 3 opções do plano da IA ──
+      const htmlObs = opcoes.slice(0, 3).map((op, i) =>
         `<p><strong>Opção ${i + 1}: ${op.nome}</strong> — ${op.calorias} kcal</p>` +
         `<ul>${op.ingredientes.map(ing => `<li>${ing.item}: ${ing.quantidade}</li>`).join('')}</ul>` +
+        `<p><em>Modo de preparo: ${op.modo_preparo}</em></p>` +
         `<p><em>PTN ${op.macros.ptn_g}g | CHO ${op.macros.cho_g}g | LIP ${op.macros.lip_g}g</em></p>`
       ).join('<hr>');
 
-      // ── Insere no editor rico (contenteditable) ──
-      await page.evaluate((html) => {
-        // Tenta contenteditable (editor rico do WebDiet)
+      // ── 7f. Insere o conteúdo na área "Observações da refeição" (contenteditable) ──
+      const inserido = await page.evaluate((html) => {
+        // Rola o modal para baixo para revelar a área de observações
+        const modal = document.querySelector<HTMLElement>('.modal-body, [class*="modal"], [class*="refeicao"]');
+        if (modal) modal.scrollTop = modal.scrollHeight;
+
+        // Busca todos os contenteditable visíveis
         const editors = Array.from(document.querySelectorAll<HTMLElement>('[contenteditable="true"]'))
-          .filter(el => el.offsetWidth > 0);
-        if (editors.length > 0) {
-          const ed = editors[editors.length - 1];
-          ed.focus();
-          ed.innerHTML = html;
-          ed.dispatchEvent(new Event('input', { bubbles: true }));
-          return 'contenteditable';
-        }
-        // Fallback: TinyMCE
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tmc = (window as any).tinymce;
-        if (tmc?.activeEditor) {
-          tmc.activeEditor.setContent(html);
-          return 'tinymce';
-        }
-        return 'none';
-      }, conteudoHtml);
-      await new Promise(r => setTimeout(r, 500));
+          .filter(el => (el as HTMLElement).offsetWidth > 0);
+        const ed = editors[editors.length - 1]; // Último = Observações
+        if (!ed) return false;
+        ed.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        ed.focus();
+        ed.innerHTML = html;
+        ed.dispatchEvent(new Event('input', { bubbles: true }));
+        ed.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+        return true;
+      }, htmlObs);
 
-      // Fecha o painel do editor clicando em outro lugar
+      if (!inserido) {
+        console.warn(`[webdiet] Não encontrou contenteditable para "${nome}" — pulando observação`);
+      }
+
+      await new Promise(r => setTimeout(r, 800));
+
+      // ── 7g. Fecha o modal do editor (Escape) ──
       await page.keyboard.press('Escape');
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 1200));
 
-      console.log(`[webdiet] Refeição "${nome}" preenchida (${opcoes.length} opções)`);
+      console.log(`[webdiet] Refeição "${nome}" adicionada — ${opcoes.length} opções no plano`);
     }
 
-    // ── 9. Salva ──
-    await page.evaluate(() => {
-      const btns = Array.from(document.querySelectorAll<HTMLElement>('*'));
-      btns.find(el => el.textContent?.includes('salvar alterações'))?.click();
-    });
-    await new Promise(r => setTimeout(r, 2500));
+    // O WebDiet salva automaticamente via API — aguarda estabilizar
+    await new Promise(r => setTimeout(r, 2000));
+    console.log(`[webdiet] ✅ Prescrição Por Alimentos concluída para: ${dados.nome}`);
 
-    console.log(`[webdiet] ✅ Prescrição qualitativa salva para: ${dados.nome}`);
   } catch (err) {
-    console.error('[webdiet] Erro ao criar prescrição alimentar:', err);
+    console.error('[webdiet] Erro ao criar prescrição Por Alimentos:', err);
+    throw err;
   }
 }
 
