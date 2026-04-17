@@ -505,9 +505,86 @@ async function criarPrescricaoAlimentar(page: Page, dados: DadosPacienteWebdiet)
       }
 
       // ── 7d. Aguarda o modal do editor de refeição abrir ──
-      await new Promise(r => setTimeout(r, 2500));
+      await new Promise(r => setTimeout(r, 3000));
 
-      // ── 7e. Monta HTML com as 3 opções do plano da IA ──
+      // ── 7e. Busca alimentos da opção 1 na base do WebDiet ──
+      // Pega os ingredientes da opção 1 (a principal) para adicionar via buscador
+      const opcao1 = opcoes[0];
+      const ingredientesParaBuscar = opcao1?.ingredientes?.slice(0, 4) ?? []; // Máx 4 ingredientes
+
+      for (const ingrediente of ingredientesParaBuscar) {
+        // Extrai o nome limpo do ingrediente (sem parênteses, quantidades etc)
+        const nomeBusca = ingrediente.item.split('(')[0].trim().toLowerCase()
+          .replace(/\b(cozido|grelhado|assado|cru|frito|integral|light)\b/, '').trim();
+
+        // Digita no campo de busca de alimentos
+        const digitouBusca = await page.evaluate((busca: string) => {
+          const inp = document.querySelector<HTMLInputElement>('input[placeholder*="alimento"], input[placeholder*="Busque pelo nome do alimento"]');
+          if (!inp) return false;
+          inp.focus();
+          inp.value = busca;
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+          inp.dispatchEvent(new KeyboardEvent('keyup', { key: 'a', bubbles: true }));
+          return true;
+        }, nomeBusca);
+
+        if (!digitouBusca) {
+          console.warn(`[webdiet] Campo de busca não encontrado para "${nome}"`);
+          break;
+        }
+
+        // Aguarda resultados aparecerem (autocomplete)
+        await new Promise(r => setTimeout(r, 2500));
+
+        // Clica no primeiro resultado da lista
+        const clicouAlimento = await page.evaluate(() => {
+          // Tenta clicar no primeiro item da lista de alimentos
+          const item = document.querySelector<HTMLElement>('.itemAlimento, [class*="itemAlimento"], tbody tr:first-child, .tt-suggestion:first-child, [class*="resultado"]:first-child');
+          if (item) { item.click(); return true; }
+          // Fallback: acha qualquer linha visível que tenha "Kcal" (linha de alimento)
+          const linhas = Array.from(document.querySelectorAll<HTMLElement>('tr, li, [class*="item"]'))
+            .filter(el => el.offsetWidth > 0 && el.textContent?.includes('Kcal'));
+          if (linhas[0]) { linhas[0].click(); return true; }
+          return false;
+        });
+
+        if (clicouAlimento) {
+          console.log(`[webdiet] Alimento "${nomeBusca}" adicionado na refeição "${nome}"`);
+          await new Promise(r => setTimeout(r, 1500));
+
+          // Define a quantidade (limpa e converte para número)
+          const qtdStr = ingrediente.quantidade ?? '100g';
+          const qtdNum = parseInt(qtdStr.replace(/\D/g, ''), 10) || 100;
+
+          // Preenche o campo de quantidade que aparece após adicionar
+          await page.evaluate((qtd: number) => {
+            // Inputs de quantidade aparecem após clicar no alimento
+            const qtdInputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="number"], input[placeholder*="Qtd"], input[placeholder*="quant"]'))
+              .filter(el => el.offsetWidth > 0);
+            const qtdInput = qtdInputs[qtdInputs.length - 1];
+            if (qtdInput) {
+              qtdInput.focus();
+              qtdInput.value = String(qtd);
+              qtdInput.dispatchEvent(new Event('input', { bubbles: true }));
+              qtdInput.dispatchEvent(new Event('change', { bubbles: true }));
+              qtdInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+            }
+          }, qtdNum);
+
+          await new Promise(r => setTimeout(r, 800));
+        } else {
+          console.warn(`[webdiet] Alimento "${nomeBusca}" não encontrado na base — pulando`);
+        }
+
+        // Limpa o campo de busca para próximo ingrediente
+        await page.evaluate(() => {
+          const inp = document.querySelector<HTMLInputElement>('input[placeholder*="alimento"]');
+          if (inp) { inp.value = ''; inp.dispatchEvent(new Event('input', { bubbles: true })); }
+        });
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      // ── 7f. Insere as 3 opções em "Observações da refeição" via TinyMCE ──
       const htmlObs = opcoes.slice(0, 3).map((op, i) =>
         `<p><strong>Opção ${i + 1}: ${op.nome}</strong> — ${op.calorias} kcal</p>` +
         `<ul>${op.ingredientes.map(ing => `<li>${ing.item}: ${ing.quantidade}</li>`).join('')}</ul>` +
@@ -515,36 +592,34 @@ async function criarPrescricaoAlimentar(page: Page, dados: DadosPacienteWebdiet)
         `<p><em>PTN ${op.macros.ptn_g}g | CHO ${op.macros.cho_g}g | LIP ${op.macros.lip_g}g</em></p>`
       ).join('<hr>');
 
-      // ── 7f. Insere o conteúdo na área "Observações da refeição" (contenteditable) ──
-      const inserido = await page.evaluate((html) => {
-        // Rola o modal para baixo para revelar a área de observações
-        const modal = document.querySelector<HTMLElement>('.modal-body, [class*="modal"], [class*="refeicao"]');
+      // Rola o modal para baixo e insere via TinyMCE
+      await page.evaluate((html: string) => {
+        // Tenta TinyMCE primeiro
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tmc = (window as any).tinymce;
+        if (tmc?.activeEditor) {
+          tmc.activeEditor.setContent(html);
+          return;
+        }
+        // Fallback: contenteditable
+        const modal = document.querySelector<HTMLElement>('.modal.fade.show, .modal.show');
         if (modal) modal.scrollTop = modal.scrollHeight;
-
-        // Busca todos os contenteditable visíveis
-        const editors = Array.from(document.querySelectorAll<HTMLElement>('[contenteditable="true"]'))
-          .filter(el => (el as HTMLElement).offsetWidth > 0);
-        const ed = editors[editors.length - 1]; // Último = Observações
-        if (!ed) return false;
-        ed.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        ed.focus();
-        ed.innerHTML = html;
-        ed.dispatchEvent(new Event('input', { bubbles: true }));
-        ed.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
-        return true;
+        const ed = Array.from(document.querySelectorAll<HTMLElement>('[contenteditable="true"]'))
+          .filter(el => el.offsetWidth > 0).pop();
+        if (ed) { ed.innerHTML = html; ed.dispatchEvent(new Event('input', { bubbles: true })); }
       }, htmlObs);
-
-      if (!inserido) {
-        console.warn(`[webdiet] Não encontrou contenteditable para "${nome}" — pulando observação`);
-      }
 
       await new Promise(r => setTimeout(r, 800));
 
-      // ── 7g. Fecha o modal do editor (Escape) ──
-      await page.keyboard.press('Escape');
-      await new Promise(r => setTimeout(r, 1200));
+      // ── 7g. Clica "confirmar e fechar" para salvar ──
+      const confirmou = await clicarTextoExato('confirmar e fechar', 4000);
+      if (!confirmou) {
+        // Fallback: Escape
+        await page.keyboard.press('Escape');
+      }
+      await new Promise(r => setTimeout(r, 1500));
 
-      console.log(`[webdiet] Refeição "${nome}" adicionada — ${opcoes.length} opções no plano`);
+      console.log(`[webdiet] Refeição "${nome}" concluída — ${ingredientesParaBuscar.length} alimentos + observações`);
     }
 
     // O WebDiet salva automaticamente via API — aguarda estabilizar
