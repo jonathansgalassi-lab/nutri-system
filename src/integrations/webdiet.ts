@@ -321,42 +321,54 @@ async function buscarEAbrirPaciente(page: Page, nome: string, telefone?: string)
   const searchSel = '[placeholder="Busque pelo nome, apelido, CPF, telefone ou pela tag do paciente"]';
   await page.waitForSelector(searchSel, { timeout: 15000 });
 
-  // Limpa e digita o primeiro nome
+  // Limpa o campo e digita o primeiro nome com delay real para disparar o evento Angular
   await page.click(searchSel, { clickCount: 3 });
   await page.keyboard.press('Backspace');
-  await page.type(searchSel, nome.split(' ')[0], { delay: 40 });
-  await new Promise(r => setTimeout(r, 2000));
+  const primeiroNome = nome.split(' ')[0];
+  await page.type(searchSel, primeiroNome, { delay: 80 });
+
+  // Aguarda resultados aparecerem (o WebDiet faz debounce de ~500ms)
+  await new Promise(r => setTimeout(r, 3000));
 
   // Verifica se apareceu algum resultado com o nome
   const achou = await page.evaluate((nomeBusca, tel) => {
-    const items = Array.from(document.querySelectorAll<HTMLElement>(
-      '.pacienteItem, [class*="paciente-item"], ul li[onclick], [data-id], .listaPacientes li'
-    ));
+    // O WebDiet usa .pacienteLinha como classe dos itens da lista
+    const seletores = [
+      '.pacienteLinha', '.pacienteItem', '[class*="paciente-item"]',
+      'ul li[onclick]', '[data-id]', '.listaPacientes li',
+      '[class*="pacienteLinha"]', '[class*="itemLista"]',
+    ];
+    let items: HTMLElement[] = [];
+    for (const sel of seletores) {
+      items = Array.from(document.querySelectorAll<HTMLElement>(sel));
+      if (items.length) break;
+    }
     if (!items.length) return false;
+
+    // Filtra somente itens que contêm o nome buscado
+    const primeiroNome = nomeBusca.split(' ')[0].toLowerCase();
+    const comNome = items.filter(el => el.textContent?.toLowerCase().includes(primeiroNome));
+    const lista = comNome.length ? comNome : items;
 
     // Tenta achar pelo telefone (mais preciso)
     if (tel) {
       const telLimpo = tel.replace(/\D/g, '').slice(-8);
-      const porTel = items.find(el => el.textContent?.replace(/\D/g,'').includes(telLimpo));
+      const porTel = lista.find(el => el.textContent?.replace(/\D/g,'').includes(telLimpo));
       if (porTel) { porTel.click(); return true; }
     }
-    // Fallback: primeiro resultado que contenha o nome
-    const primeiroNome = nomeBusca.split(' ')[0].toLowerCase();
-    const porNome = items.find(el => el.textContent?.toLowerCase().includes(primeiroNome));
-    if (porNome) { porNome.click(); return true; }
 
-    items[0].click();
+    lista[0].click();
     return true;
   }, nome, telefone);
 
   if (achou) {
     // Fecha modal "nova consulta?" se aparecer
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 2000));
     await page.evaluate(() => {
       const btns = Array.from(document.querySelectorAll<HTMLElement>('button, *'));
-      btns.find(el => el.textContent?.includes('não registrar'))?.click();
+      btns.find(el => el.textContent?.toLowerCase().includes('não registrar'))?.click();
     });
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 1000));
   }
 
   return achou;
@@ -449,10 +461,26 @@ async function criarPrescricaoAlimentar(page: Page, dados: DadosPacienteWebdiet)
     await clicarTextoExato('confirmar');
 
     // ── 6. Aguarda navegação para metodoPlanning.php ──
-    await page.waitForFunction(
-      () => window.location.href.includes('metodoPlanning'),
-      { timeout: 25000 }
-    );
+    // Tenta waitForFunction com timeout generoso; se falhar, verifica se já chegou
+    try {
+      await page.waitForFunction(
+        () => window.location.href.includes('metodoPlanning'),
+        { timeout: 40000 }
+      );
+    } catch {
+      // Pode ter navegado mas o evento não disparou — verifica URL atual
+      const urlAtual = page.url();
+      if (!urlAtual.includes('metodoPlanning')) {
+        console.warn('[webdiet] Timeout aguardando metodoPlanning — URL atual:', urlAtual);
+        // Tenta clicar "confirmar" novamente caso o modal ainda esteja aberto
+        await clicarTextoExato('confirmar', 3000);
+        await new Promise(r => setTimeout(r, 5000));
+        const urlApos = page.url();
+        if (!urlApos.includes('metodoPlanning')) {
+          throw new Error(`Não navegou para metodoPlanning. URL: ${urlApos}`);
+        }
+      }
+    }
     await new Promise(r => setTimeout(r, 3000));
     console.log(`[webdiet] Editor Por Alimentos carregado: ${page.url()}`);
 
