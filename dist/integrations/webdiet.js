@@ -396,10 +396,10 @@ async function criarPrescricaoAlimentar(page, dados) {
         // ── 1. Abre Planejamento Alimentar ──
         const p1 = await esperarEClicar(page, 'Planejamento alimentar', false, 8000);
         console.log(`[webdiet] Clicou "Planejamento alimentar": ${p1}`);
-        await new Promise(r => setTimeout(r, 2000));
-        // ── 2. Nova prescrição ──
-        const p2 = await esperarEClicar(page, 'nova prescrição alimentar', false, 8000);
-        console.log(`[webdiet] Clicou "nova prescrição alimentar": ${p2}`);
+        await new Promise(r => setTimeout(r, 3000)); // aguarda lista de prescrições carregar
+        // ── 2. Nova prescrição (busca parcial — texto pode variar: "+", maiúscula, etc.) ──
+        const p2 = await esperarEClicar(page, 'nova prescrição', true, 8000);
+        console.log(`[webdiet] Clicou "nova prescrição": ${p2}`);
         await new Promise(r => setTimeout(r, 2500));
         // ── 3. Nome da prescrição ──
         const nomePrescricao = `Plano IA — ${dados.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
@@ -415,11 +415,11 @@ async function criarPrescricaoAlimentar(page, dados) {
         }, nomePrescricao);
         console.log(`[webdiet] Preencheu nome da prescrição: ${preencheuNome}`);
         // ── 4. Avança ──
-        const p4 = await clicar('avançar', 8000);
+        const p4 = await clicar('avançar', 8000, true);
         console.log(`[webdiet] Clicou "avançar": ${p4}`);
         await new Promise(r => setTimeout(r, 2000));
         // ── 5. Confirma modelo em branco ──
-        const p5 = await clicar('confirmar', 8000);
+        const p5 = await clicar('confirmar', 8000, true);
         console.log(`[webdiet] Clicou "confirmar": ${p5}`);
         // ── 6. Aguarda navegação para metodoPlanning.php ──
         try {
