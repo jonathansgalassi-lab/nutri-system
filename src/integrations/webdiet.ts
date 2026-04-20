@@ -323,28 +323,33 @@ async function buscarEAbrirPaciente(page: Page, nome: string, telefone?: string)
 
   const primeiroNome = nome.split(' ')[0];
 
-  // Clica para focar, limpa e usa page.evaluate para setar valor + disparar eventos Angular
+  // Foca e limpa o campo
   await page.click(searchSel, { clickCount: 3 });
   await page.keyboard.press('Backspace');
+  await new Promise(r => setTimeout(r, 300));
 
-  // page.type em modo headless não dispara eventos Angular — usamos o setter nativo do prototype
+  // Digita caractere por caractere com delay generoso para acionar debounce do Angular
+  await page.type(searchSel, primeiroNome, { delay: 120 });
+
+  // Reforça disparo de eventos via evaluate (Angular 2+ precisa do setter nativo)
   await page.evaluate((sel, valor) => {
     const input = document.querySelector<HTMLInputElement>(sel);
     if (!input) return;
-    // Força o setter nativo para que Angular detecte a mudança
-    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-    if (nativeSetter) nativeSetter.call(input, valor);
-    else input.value = valor;
-    // Dispara todos os eventos que Angular/jQuery usam para debounce
-    ['input', 'change', 'keyup', 'keydown'].forEach(ev =>
-      input.dispatchEvent(new Event(ev, { bubbles: true }))
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    if (setter) setter.call(input, valor);
+    ['input', 'keyup', 'change'].forEach(ev =>
+      input.dispatchEvent(new Event(ev, { bubbles: true, cancelable: true }))
     );
-    // Fallback AngularJS (v1)
-    try { (window as unknown as Record<string, unknown>).angular && (window as unknown as { angular: { element: (e: Element) => { triggerHandler: (s: string) => void } } }).angular.element(input).triggerHandler('input'); } catch { /* noop */ }
+    // AngularJS fallback
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ng = (window as any).angular;
+      if (ng) ng.element(input).triggerHandler('input');
+    } catch { /* noop */ }
   }, searchSel, primeiroNome);
 
-  // Aguarda resultados aparecerem (o WebDiet faz debounce de ~500ms)
-  await new Promise(r => setTimeout(r, 3000));
+  // Aguarda debounce + chamada de API de busca (WebDiet usa ~800ms)
+  await new Promise(r => setTimeout(r, 4000));
 
   // Verifica se apareceu algum resultado com o nome
   const achou = await page.evaluate((nomeBusca, tel) => {
@@ -390,250 +395,185 @@ async function buscarEAbrirPaciente(page: Page, nome: string, telefone?: string)
   return achou;
 }
 
-// ─── Cria prescrição "Por alimentos" com o plano da IA ───────
-// Estratégia:
-//   1. UI clicks para navegar até metodoPlanning.php (criar prescrição em branco)
-//   2. Extrai ID da prescrição da URL e tokens (window.n/t/p) via page.evaluate
-//   3. Para cada refeição, busca alimentos via API buscaAlimentos.php
-//   4. Monta o JSON completo da prescrição e salva via salvarPrescricaoAlimentar.php
-//   Isso elimina todos os clicks instáveis no editor de refeições
-
-interface WebdietAlimento {
-  id: string | number;
-  nome?: string;
-  descricao?: string;
-  [k: string]: unknown;
-}
+// ─── Cria prescrição alimentar com o plano da IA (Plano A: texto via TinyMCE) ─
+// Fluxo simplificado — sem busca de alimentos, sem APIs internas:
+//   1. Navega para Planejamento Alimentar → nova prescrição
+//   2. Para cada refeição: cria via UI e insere HTML formatado via TinyMCE
+//   3. HTML contém as 3 opções rotativas com ingredientes, macros e preparo
 
 async function criarPrescricaoAlimentar(page: Page, dados: DadosPacienteWebdiet): Promise<void> {
   const plano = dados.planoAlimentar;
   if (!plano) return;
 
   const refeicoesCfg = [
-    { chave: 'cafe_manha',   nome: 'Café da Manhã',   horario: '07:00' },
-    { chave: 'lanche_manha', nome: 'Lanche da Manhã', horario: '10:00' },
-    { chave: 'almoco',       nome: 'Almoço',           horario: '12:30' },
-    { chave: 'lanche_tarde', nome: 'Lanche da Tarde', horario: '15:30' },
-    { chave: 'jantar',       nome: 'Jantar',           horario: '19:00' },
-    { chave: 'ceia',         nome: 'Ceia',             horario: '21:30' },
+    { chave: 'cafe_manha',   nome: 'Café da Manhã',   horario: '07:00', sugestao: '08:00 - Café da manhã' },
+    { chave: 'lanche_manha', nome: 'Lanche da Manhã', horario: '10:00', sugestao: null },
+    { chave: 'almoco',       nome: 'Almoço',           horario: '12:30', sugestao: '13:00 - Almoço' },
+    { chave: 'lanche_tarde', nome: 'Lanche da Tarde', horario: '15:30', sugestao: '17:00 - Lanche' },
+    { chave: 'jantar',       nome: 'Jantar',           horario: '19:00', sugestao: '21:00 - Jantar' },
+    { chave: 'ceia',         nome: 'Ceia',             horario: '21:30', sugestao: null },
   ];
 
   const semana = plano.plano.semana_1_4 as unknown as Record<string, OpcaoRefeicao[]>;
   const refeicoesFiltradas = refeicoesCfg.filter(r => semana[r.chave]?.length);
 
-  // Helper: clica num elemento pelo texto exato ou parcial, com retry até timeout
-  const clicarTextoExato = async (texto: string, timeout = 6000, parcial = false): Promise<boolean> => {
+  // Helper: clica num elemento pelo texto, com retry até timeout
+  const clicar = async (texto: string, timeout = 8000, parcial = false): Promise<boolean> => {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
       const ok = await page.evaluate((t, p) => {
         const todos = Array.from(document.querySelectorAll<HTMLElement>('*'))
-          .filter(e => (e as HTMLElement).offsetWidth > 0);
+          .filter(e => e.offsetWidth > 0);
         const el = todos.find(e => e.children.length === 0 &&
-          (p ? e.textContent?.toLowerCase().includes(t.toLowerCase())
-             : e.textContent?.trim() === t));
+          (p ? e.textContent?.toLowerCase().includes(t.toLowerCase()) : e.textContent?.trim() === t));
         if (el) { el.click(); return true; }
         const el2 = todos.find(e =>
-          p ? e.textContent?.toLowerCase().includes(t.toLowerCase())
-            : e.textContent?.trim() === t);
+          p ? e.textContent?.toLowerCase().includes(t.toLowerCase()) : e.textContent?.trim() === t);
         if (el2) { el2.click(); return true; }
         return false;
       }, texto, parcial);
       if (ok) return true;
-      await new Promise(r => setTimeout(r, 350));
+      await new Promise(r => setTimeout(r, 400));
     }
     return false;
   };
 
-  try {
-    // ── Fase 1: UI navigation — cria prescrição em branco ──
+  // Helper: insere HTML no TinyMCE ativo ou no contenteditable visível
+  const inserirHtml = async (html: string): Promise<void> => {
+    await page.evaluate((h) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tmc = (window as any).tinymce;
+      if (tmc?.activeEditor) { tmc.activeEditor.setContent(h); return; }
+      const ed = Array.from(document.querySelectorAll<HTMLElement>('[contenteditable="true"]'))
+        .filter(el => el.offsetWidth > 0).pop();
+      if (ed) { ed.innerHTML = h; ed.dispatchEvent(new Event('input', { bubbles: true })); }
+    }, html);
+  };
 
+  try {
+    // ── 1. Abre Planejamento Alimentar ──
     await esperarEClicar(page, 'Planejamento alimentar');
     await new Promise(r => setTimeout(r, 1500));
 
+    // ── 2. Nova prescrição ──
     await esperarEClicar(page, 'nova prescrição alimentar');
     await new Promise(r => setTimeout(r, 2000));
 
+    // ── 3. Nome da prescrição ──
     const nomePrescricao = `Plano IA — ${dados.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
     await page.evaluate((nome) => {
       const input = document.querySelector<HTMLInputElement>(
         'input[placeholder*="Nome da prescrição"], input[placeholder*="Cardápio"], input[placeholder*="prescrição"]'
       );
-      if (input) {
-        input.focus(); input.value = nome;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+      if (!input) return;
+      input.focus(); input.value = nome;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
     }, nomePrescricao);
 
-    // "Por alimentos" já está selecionado por padrão
-    await clicarTextoExato('avançar');
+    // ── 4. Avança com "Por alimentos" (padrão) → confirma modelo em branco ──
+    await clicar('avançar');
     await new Promise(r => setTimeout(r, 1500));
+    await clicar('confirmar');
 
-    // "Criar planejamento em branco" já selecionado
-    await clicarTextoExato('confirmar');
-
-    // Aguarda navegação para metodoPlanning.php
+    // ── 5. Aguarda navegação para metodoPlanning.php ──
     try {
       await page.waitForFunction(
         () => window.location.href.includes('metodoPlanning'),
-        { timeout: 40000 }
+        { timeout: 45000 }
       );
     } catch {
-      const urlAtual = page.url();
-      if (!urlAtual.includes('metodoPlanning')) {
-        console.warn('[webdiet] Timeout aguardando metodoPlanning — URL atual:', urlAtual);
-        await clicarTextoExato('confirmar', 3000);
-        await new Promise(r => setTimeout(r, 5000));
-        const urlApos = page.url();
-        if (!urlApos.includes('metodoPlanning')) {
-          throw new Error(`Não navegou para metodoPlanning. URL: ${urlApos}`);
+      const url = page.url();
+      if (!url.includes('metodoPlanning')) {
+        // Tenta clicar confirmar de novo (modal pode ter ficado aberto)
+        await clicar('confirmar', 3000);
+        await new Promise(r => setTimeout(r, 6000));
+        if (!page.url().includes('metodoPlanning')) {
+          throw new Error(`Não navegou para metodoPlanning. URL atual: ${page.url()}`);
         }
       }
     }
     await new Promise(r => setTimeout(r, 3000));
+    console.log(`[webdiet] Editor aberto: ${page.url()}`);
 
-    // ── Fase 2: Extrai ID da prescrição e tokens de autenticação ──
-
-    const prescricaoUrl = page.url();
-    const prescricaoId = new URL(prescricaoUrl).searchParams.get('id') ?? '';
-    if (!prescricaoId) throw new Error(`[webdiet] ID da prescrição não encontrado na URL: ${prescricaoUrl}`);
-
-    const tokens = await page.evaluate(() => ({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      n: (window as any).n as string ?? '',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      t: (window as any).t as string ?? '',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      p: (window as any).p as string ?? '',
-      // Alguns contextos expõem sessao separado
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sessao: (window as any).sessao as string ?? '',
-    }));
-
-    if (!tokens.n || !tokens.t) {
-      throw new Error('[webdiet] Tokens de autenticação (window.n / window.t) não encontrados na página');
-    }
-    console.log(`[webdiet] Prescrição ID: ${prescricaoId} | tokens: n=${tokens.n.slice(0,4)}… t=${tokens.t.slice(0,4)}…`);
-
-    // ── Fase 3: Busca alimentos e monta JSON da prescrição ──
-
-    type RefeicaoPayload = {
-      horario: string; ativo: string; exibido: string; tipo: string;
-      cardapio: string; pdfView: boolean; obs: string; nome: string;
-      conteudos: Array<{ id: string; dados: [string, string] }>;
-    };
-
-    const prescricaoPayload: RefeicaoPayload[] = [];
-
-    for (const { chave, nome, horario } of refeicoesFiltradas) {
+    // ── 6. Adiciona cada refeição ──
+    for (const { chave, nome, horario, sugestao } of refeicoesFiltradas) {
       const opcoes = semana[chave];
-      const opcao1 = opcoes[0];
-      const ingredientes = opcao1?.ingredientes?.slice(0, 5) ?? [];
 
-      const conteudos: Array<{ id: string; dados: [string, string] }> = [];
-
-      for (const ing of ingredientes) {
-        // Limpa o nome para busca: remove preparações e parênteses
-        const nomeBusca = ing.item
-          .split('(')[0].trim()
-          .replace(/\b(cozido|grelhado|assado|cru|frito|integral|light|refogado|cozida|grelhada|assada)\b/gi, '')
-          .replace(/\s{2,}/g, ' ')
-          .trim();
-
-        if (!nomeBusca) continue;
-
-        try {
-          // Chama buscaAlimentos.php via fetch com credentials do cookie de sessão
-          const resultado = await page.evaluate(async (n, t, p, busca) => {
-            try {
-              const fd = new FormData();
-              fd.append('n', n); fd.append('t', t); fd.append('p', p);
-              fd.append('busca', busca);
-              fd.append('tipo', 'planning');
-              const r = await fetch('/painel/v4/ajax/buscaAlimentos.php', {
-                method: 'POST', body: fd, credentials: 'include',
-              });
-              if (!r.ok) return { erro: `HTTP ${r.status}`, dados: null };
-              const texto = await r.text();
-              try { return { erro: null, dados: JSON.parse(texto) }; }
-              catch { return { erro: `JSON inválido: ${texto.slice(0, 200)}`, dados: null }; }
-            } catch (e) {
-              return { erro: String(e), dados: null };
-            }
-          }, tokens.n, tokens.t, tokens.p, nomeBusca);
-
-          if (resultado.erro) {
-            console.warn(`[webdiet] buscaAlimentos "${nomeBusca}": ${resultado.erro}`);
-          } else if (Array.isArray(resultado.dados) && resultado.dados.length > 0) {
-            const alimento = resultado.dados[0] as WebdietAlimento;
-            const nomeAlimento = String(alimento.nome ?? alimento.descricao ?? nomeBusca);
-            // Extrai unidade da quantidade (g, ml, unidade, etc.)
-            const unidade = ing.quantidade.replace(/[\d.,\s]/g, '').trim() || 'g';
-            conteudos.push({ id: String(alimento.id), dados: [nomeAlimento, unidade] });
-            console.log(`[webdiet]   ✓ ${nomeBusca} → ID ${alimento.id} (${nomeAlimento})`);
-          } else {
-            console.warn(`[webdiet]   ✗ Sem resultado para: "${nomeBusca}"`);
-          }
-        } catch (e) {
-          console.warn(`[webdiet]   ✗ Erro buscando "${nomeBusca}":`, e);
-        }
-
-        // Rate-limit: evita sobrecarga no servidor
-        await new Promise(r => setTimeout(r, 600));
-      }
-
-      // Observações da refeição: 3 opções rotativas com macros e modo de preparo
-      const htmlObs = opcoes.slice(0, 3).map((op, i) =>
-        `<p><strong>Opção ${i + 1}: ${op.nome}</strong> — ${op.calorias} kcal</p>` +
-        `<ul>${op.ingredientes.map(i2 => `<li>${i2.item}: ${i2.quantidade}</li>`).join('')}</ul>` +
-        `<p><em>Preparo: ${op.modo_preparo}</em></p>` +
-        `<p><em>PTN ${op.macros.ptn_g}g | CHO ${op.macros.cho_g}g | LIP ${op.macros.lip_g}g</em></p>`
+      // Monta HTML com as 3 opções rotativas
+      const html = opcoes.slice(0, 3).map((op, i) =>
+        `<p><strong>🔄 Opção ${i + 1}: ${op.nome}</strong> &nbsp;|&nbsp; ${op.calorias} kcal</p>` +
+        `<ul>${op.ingredientes.map(ing => `<li>${ing.item} — <em>${ing.quantidade}</em></li>`).join('')}</ul>` +
+        `<p><em>🍳 ${op.modo_preparo}</em></p>` +
+        `<p><small>PTN ${op.macros.ptn_g}g &nbsp;|&nbsp; CHO ${op.macros.cho_g}g &nbsp;|&nbsp; LIP ${op.macros.lip_g}g</small></p>`
       ).join('<hr>');
 
-      prescricaoPayload.push({
-        horario, ativo: 'true', exibido: 'false',
-        tipo: 'dieta', cardapio: '', pdfView: false,
-        obs: htmlObs, nome, conteudos,
-      });
+      // ── 6a. Nova refeição ──
+      const abriu = await clicar('nova refeição ou hábito', 8000);
+      if (!abriu) { console.warn(`[webdiet] "nova refeição" não encontrado — pulando "${nome}"`); continue; }
+      await new Promise(r => setTimeout(r, 1000));
 
-      console.log(`[webdiet] Refeição "${nome}" preparada: ${conteudos.length}/${ingredientes.length} alimentos encontrados`);
-    }
+      await clicar('criar nova refeição');
+      await new Promise(r => setTimeout(r, 1000));
 
-    // ── Fase 4: Salva via API salvarPrescricaoAlimentar.php ──
-
-    const sessao = tokens.sessao || prescricaoId;
-    const resposta = await page.evaluate(async (n, t, p, id, sessaoParam, prescricao) => {
-      try {
-        const fd = new FormData();
-        fd.append('n', n); fd.append('t', t); fd.append('p', p);
-        fd.append('id', id);
-        fd.append('sessao', sessaoParam);
-        fd.append('origem', 'automatica');
-        fd.append('prescricao', JSON.stringify(prescricao));
-        const r = await fetch('/painel/v4/api/salvarPrescricaoAlimentar.php', {
-          method: 'POST', body: fd, credentials: 'include',
-        });
-        const texto = await r.text();
-        return { ok: r.ok, status: r.status, texto };
-      } catch (e) {
-        return { ok: false, status: 0, texto: String(e) };
+      // ── 6b. Seleciona nome da refeição ──
+      if (sugestao) {
+        // Tenta sugestão rápida; se não achar, preenche manualmente
+        const usouSugestao = await clicar(sugestao, 3000);
+        if (!usouSugestao) {
+          await preencherNomeRefeicao(page, nome, horario);
+          await clicar('confirmar');
+        }
+      } else {
+        await preencherNomeRefeicao(page, nome, horario);
+        await clicar('confirmar');
       }
-    }, tokens.n, tokens.t, tokens.p, prescricaoId, sessao, prescricaoPayload);
 
-    if (resposta.ok) {
-      console.log(`[webdiet] ✅ Prescrição salva via API. Resposta: ${resposta.texto.slice(0, 200)}`);
-    } else {
-      // Log completo para diagnóstico
-      console.warn(`[webdiet] salvarPrescricaoAlimentar retornou ${resposta.status}: ${resposta.texto.slice(0, 500)}`);
-      // Mesmo com erro HTTP, o WebDiet às vezes persiste os dados — não lança exceção
+      // ── 6c. Aguarda modal do editor abrir ──
+      await new Promise(r => setTimeout(r, 3000));
+
+      // ── 6d. Insere HTML das 3 opções via TinyMCE ──
+      await inserirHtml(html);
+      await new Promise(r => setTimeout(r, 800));
+
+      // ── 6e. Confirma e fecha ──
+      const fechou = await clicar('confirmar e fechar', 5000);
+      if (!fechou) await page.keyboard.press('Escape');
+      await new Promise(r => setTimeout(r, 1500));
+
+      console.log(`[webdiet] ✓ Refeição "${nome}" inserida (${opcoes.length} opções)`);
     }
 
-    console.log(`[webdiet] ✅ Prescrição Por Alimentos concluída para: ${dados.nome}`);
+    await new Promise(r => setTimeout(r, 2000));
+    console.log(`[webdiet] ✅ Prescrição concluída para: ${dados.nome}`);
 
   } catch (err) {
-    console.error('[webdiet] Erro ao criar prescrição Por Alimentos:', err);
+    console.error('[webdiet] Erro em criarPrescricaoAlimentar:', err);
     throw err;
   }
+}
+
+// Helper separado: preenche nome e horário da refeição manualmente
+async function preencherNomeRefeicao(page: Page, nome: string, horario: string): Promise<void> {
+  await page.evaluate((n, h) => {
+    // Horário
+    const timeInput = Array.from(document.querySelectorAll<HTMLInputElement>('input'))
+      .filter(el => el.offsetWidth > 0)
+      .find(el => el.type === 'time' || el.placeholder?.includes(':'));
+    if (timeInput) {
+      timeInput.focus(); timeInput.value = h;
+      timeInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    // Nome
+    const textInputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="text"], input:not([type])'))
+      .filter(el => el.offsetWidth > 0);
+    const nameInput = textInputs[textInputs.length - 1];
+    if (nameInput) {
+      nameInput.focus(); nameInput.value = n;
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+      nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }, nome, horario);
 }
 
 // ─── Função principal: inserir paciente + conteúdo completo ───
