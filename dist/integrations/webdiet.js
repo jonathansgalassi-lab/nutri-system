@@ -394,11 +394,11 @@ async function criarPrescricaoAlimentar(page, dados) {
     };
     try {
         // ── 1. Abre Planejamento Alimentar ──
-        const p1 = await esperarEClicar(page, 'Planejamento alimentar', 8000);
+        const p1 = await esperarEClicar(page, 'Planejamento alimentar', false, 8000);
         console.log(`[webdiet] Clicou "Planejamento alimentar": ${p1}`);
         await new Promise(r => setTimeout(r, 2000));
         // ── 2. Nova prescrição ──
-        const p2 = await esperarEClicar(page, 'nova prescrição alimentar', 8000);
+        const p2 = await esperarEClicar(page, 'nova prescrição alimentar', false, 8000);
         console.log(`[webdiet] Clicou "nova prescrição alimentar": ${p2}`);
         await new Promise(r => setTimeout(r, 2500));
         // ── 3. Nome da prescrição ──
