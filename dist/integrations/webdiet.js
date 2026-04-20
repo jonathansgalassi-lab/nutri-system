@@ -147,6 +147,45 @@ ${dados.alergias ? `<p><strong>⚠️ Atenção</strong><br>Evitar: ${dados.aler
 ${plano?.recomendacoes?.length ? `<p><strong>📋 Recomendações Específicas</strong></p><ul>${plano.recomendacoes.map(r => `<li>${r}</li>`).join('')}</ul>` : ''}`.trim();
     }
 }
+// ─── Formata plano completo (3 opções/refeição) para anamnese ────────────────
+function formatarPlanoAnamnese(plano, dados) {
+    const semana = plano.plano.semana_1_4;
+    const nomesRefeicao = {
+        cafe_manha: '☀️ Café da Manhã',
+        lanche_manha: '🍎 Lanche da Manhã',
+        almoco: '🍽️ Almoço',
+        lanche_tarde: '🥗 Lanche da Tarde',
+        jantar: '🌙 Jantar',
+        ceia: '🫖 Ceia',
+    };
+    let html = `<p><strong>📋 Plano Alimentar — ${dados.nome}</strong></p>
+<p><strong>Meta:</strong> ${plano.resumo.meta_calorica} kcal/dia &nbsp;|&nbsp;
+<strong>PTN</strong> ${plano.resumo.macros.ptn_g}g &nbsp;|&nbsp;
+<strong>CHO</strong> ${plano.resumo.macros.cho_g}g &nbsp;|&nbsp;
+<strong>LIP</strong> ${plano.resumo.macros.lip_g}g</p>
+<p><em>💡 Reveze as opções diariamente para maior variedade</em></p>`;
+    for (const [chave, nomeRef] of Object.entries(nomesRefeicao)) {
+        const opcoes = semana[chave];
+        if (!opcoes?.length)
+            continue;
+        html += `<hr><p><strong>${nomeRef}</strong></p>`;
+        opcoes.slice(0, 3).forEach((op, i) => {
+            html += `<p><strong>Opção ${i + 1}: ${op.nome}</strong> — ${op.calorias} kcal</p>`;
+            html += `<ul>${op.ingredientes.map(ing => `<li>${ing.item} — <em>${ing.quantidade}</em></li>`).join('')}</ul>`;
+            html += `<p><em>🍳 ${op.modo_preparo}</em></p>`;
+            html += `<p><small>PTN ${op.macros.ptn_g}g | CHO ${op.macros.cho_g}g | LIP ${op.macros.lip_g}g</small></p>`;
+        });
+    }
+    if (plano.recomendacoes?.length) {
+        html += `<hr><p><strong>📌 Recomendações</strong></p>
+<ul>${plano.recomendacoes.map(r => `<li>${r}</li>`).join('')}</ul>`;
+    }
+    if (plano.alertas_nutricionista?.length) {
+        html += `<p><strong>⚠️ Alertas para o Nutricionista</strong></p>
+<ul>${plano.alertas_nutricionista.map(a => `<li>${a}</li>`).join('')}</ul>`;
+    }
+    return html;
+}
 // ─── Formata plano alimentar em HTML para WebDiet ────────────
 function formatarPlanoHtml(plano, dados) {
     const semana = plano.plano.semana_1_4;
@@ -320,269 +359,25 @@ async function buscarEAbrirPaciente(page, nome, telefone) {
         return true;
     }, nome, telefone);
     if (achou) {
-        // Fecha modal "nova consulta?" se aparecer
+        // Aguarda o modal "nova consulta?" do WebDiet (SweetAlert2) aparecer
         await new Promise(r => setTimeout(r, 2500));
+        // Fecha o modal via Swal.close() (mais confiável que clicar no botão)
         await page.evaluate(() => {
-            const btns = Array.from(document.querySelectorAll('button, *'));
-            btns.find(el => el.textContent?.toLowerCase().includes('não registrar'))?.click();
-        });
-        await new Promise(r => setTimeout(r, 2000));
-        // Verifica se o perfil do paciente ainda está aberto após "não registrar"
-        // (em algumas versões do WebDiet, o dismiss fecha o perfil também)
-        const perfilAberto = await page.evaluate(() => {
-            const textos = Array.from(document.querySelectorAll('*'))
-                .filter(e => e.offsetWidth > 0 && e.children.length <= 3)
-                .map(e => e.textContent?.trim().toLowerCase() ?? '');
-            return textos.some(t => t === 'planejamento alimentar' || t === 'anamnese geral' || t === 'avaliação nutricional');
-        });
-        console.log(`[webdiet] Perfil do paciente ainda aberto: ${perfilAberto}`);
-        if (!perfilAberto) {
-            // Perfil fechou após "não registrar" — re-abre clicando no paciente novamente
-            console.log('[webdiet] Perfil fechou, re-abrindo paciente...');
-            await new Promise(r => setTimeout(r, 1000));
-            // Re-clica no paciente na lista (agora sem modal de consulta pois já foi dispensado)
-            const reabriu = await page.evaluate((nomeBusca) => {
-                const seletores = ['.pacienteLinha', '.pacienteItem', '[class*="paciente-item"]', '[class*="pacienteLinha"]', '[class*="itemLista"]'];
-                let items = [];
-                for (const sel of seletores) {
-                    items = Array.from(document.querySelectorAll(sel));
-                    if (items.length)
-                        break;
-                }
-                const primeiroNome = nomeBusca.split(' ')[0].toLowerCase();
-                const item = items.find(el => el.textContent?.toLowerCase().includes(primeiroNome)) ?? items[0];
-                if (item) {
-                    item.click();
-                    return true;
-                }
-                return false;
-            }, nome);
-            console.log(`[webdiet] Re-abriu paciente: ${reabriu}`);
-            await new Promise(r => setTimeout(r, 3000));
-            // Dispensa nova consulta se aparecer de novo
-            await page.evaluate(() => {
-                const btns = Array.from(document.querySelectorAll('button, *'));
-                btns.find(el => el.textContent?.toLowerCase().includes('não registrar'))?.click();
-            });
-            await new Promise(r => setTimeout(r, 1500));
-        }
-    }
-    return achou;
-}
-// ─── Cria prescrição alimentar com o plano da IA (Plano A: texto via TinyMCE) ─
-// Fluxo simplificado — sem busca de alimentos, sem APIs internas:
-//   1. Navega para Planejamento Alimentar → nova prescrição
-//   2. Para cada refeição: cria via UI e insere HTML formatado via TinyMCE
-//   3. HTML contém as 3 opções rotativas com ingredientes, macros e preparo
-async function criarPrescricaoAlimentar(page, dados) {
-    const plano = dados.planoAlimentar;
-    if (!plano)
-        return;
-    const refeicoesCfg = [
-        { chave: 'cafe_manha', nome: 'Café da Manhã', horario: '07:00', sugestao: '08:00 - Café da manhã' },
-        { chave: 'lanche_manha', nome: 'Lanche da Manhã', horario: '10:00', sugestao: null },
-        { chave: 'almoco', nome: 'Almoço', horario: '12:30', sugestao: '13:00 - Almoço' },
-        { chave: 'lanche_tarde', nome: 'Lanche da Tarde', horario: '15:30', sugestao: '17:00 - Lanche' },
-        { chave: 'jantar', nome: 'Jantar', horario: '19:00', sugestao: '21:00 - Jantar' },
-        { chave: 'ceia', nome: 'Ceia', horario: '21:30', sugestao: null },
-    ];
-    const semana = plano.plano.semana_1_4;
-    const refeicoesFiltradas = refeicoesCfg.filter(r => semana[r.chave]?.length);
-    // Helper: clica num elemento pelo texto, com retry até timeout
-    const clicar = async (texto, timeout = 8000, parcial = false) => {
-        const deadline = Date.now() + timeout;
-        while (Date.now() < deadline) {
-            const ok = await page.evaluate((t, p) => {
-                const todos = Array.from(document.querySelectorAll('*'))
-                    .filter(e => e.offsetWidth > 0);
-                const el = todos.find(e => e.children.length === 0 &&
-                    (p ? e.textContent?.toLowerCase().includes(t.toLowerCase()) : e.textContent?.trim() === t));
-                if (el) {
-                    el.click();
-                    return true;
-                }
-                const el2 = todos.find(e => p ? e.textContent?.toLowerCase().includes(t.toLowerCase()) : e.textContent?.trim() === t);
-                if (el2) {
-                    el2.click();
-                    return true;
-                }
-                return false;
-            }, texto, parcial);
-            if (ok)
-                return true;
-            await new Promise(r => setTimeout(r, 400));
-        }
-        return false;
-    };
-    // Helper: insere HTML no TinyMCE ativo ou no contenteditable visível
-    const inserirHtml = async (html) => {
-        await page.evaluate((h) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const tmc = window.tinymce;
-            if (tmc?.activeEditor) {
-                tmc.activeEditor.setContent(h);
+            if (window.Swal) {
+                window.Swal.close();
                 return;
             }
-            const ed = Array.from(document.querySelectorAll('[contenteditable="true"]'))
-                .filter(el => el.offsetWidth > 0).pop();
-            if (ed) {
-                ed.innerHTML = h;
-                ed.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-        }, html);
-    };
-    try {
-        // ── 1. Diagnóstico: lista TODOS os "Planejamento alimentar" no DOM ──
-        const elemsPlan = await page.evaluate(() => Array.from(document.querySelectorAll('*'))
-            .filter(e => e.offsetWidth > 0 && e.textContent?.toLowerCase().includes('planejamento alimentar'))
-            .filter(e => e.children.length <= 3)
-            .map((e, i) => `[${i}][${e.tagName}] "${e.textContent?.trim().slice(0, 60)}" cls="${e.className?.slice(0, 40)}"`));
-        console.log('[webdiet] Elementos "Planejamento alimentar" no DOM:', JSON.stringify(elemsPlan));
-        // ── 1. Clica o ÚLTIMO "Planejamento alimentar" (painel do paciente, não sidebar geral) ──
-        const p1 = await page.evaluate(() => {
-            const todos = Array.from(document.querySelectorAll('*'))
-                .filter(e => e.offsetWidth > 0 && e.textContent?.trim() === 'Planejamento alimentar');
-            const el = todos[todos.length - 1]; // último = aba do perfil do paciente
-            if (el) {
-                el.click();
-                return todos.length;
-            }
-            return 0;
+            // Fallback: botão específico do SweetAlert2 ou texto "não registrar"
+            const btn = document.querySelector('.swal2-cancel, .swal2-deny')
+                ?? Array.from(document.querySelectorAll('button'))
+                    .find(el => el.textContent?.toLowerCase().includes('não registrar'));
+            if (btn)
+                btn.click();
         });
-        console.log(`[webdiet] Clicou "Planejamento alimentar" (${p1} encontrados, clicou último)`);
-        await new Promise(r => setTimeout(r, 3000));
-        // ── 2. Nova prescrição (busca parcial — texto pode variar: "+", maiúscula, etc.) ──
-        const p2 = await esperarEClicar(page, 'nova prescrição', true, 8000);
-        console.log(`[webdiet] Clicou "nova prescrição": ${p2}`);
-        await new Promise(r => setTimeout(r, 2500));
-        // Debug: loga o que apareceu após clicar
-        const elementosModal = await page.evaluate(() => Array.from(document.querySelectorAll('button, input, [class*="modal"] *, [class*="dialog"] *'))
-            .filter(e => e.offsetWidth > 0 && e.offsetHeight > 0)
-            .map(e => `[${e.tagName}] placeholder="${e.placeholder ?? ''}" text="${e.textContent?.trim().slice(0, 40)}"`)
-            .slice(0, 15));
-        console.log('[webdiet] Estado após clicar "nova prescrição":', JSON.stringify(elementosModal));
-        // ── 3. Nome da prescrição ──
-        const nomePrescricao = `Plano IA — ${dados.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
-        const preencheuNome = await page.evaluate((nome) => {
-            const input = document.querySelector('input[placeholder*="Nome"], input[placeholder*="Cardápio"], input[placeholder*="prescrição"], input[placeholder*="plano"]');
-            if (!input)
-                return false;
-            input.focus();
-            input.value = nome;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            return true;
-        }, nomePrescricao);
-        console.log(`[webdiet] Preencheu nome da prescrição: ${preencheuNome}`);
-        // ── 4. Avança (exact match para não clicar elemento errado) ──
-        const p4 = await clicar('avançar', 8000);
-        console.log(`[webdiet] Clicou "avançar": ${p4}`);
-        await new Promise(r => setTimeout(r, 2000));
-        // Debug: loga qualquer request de rede após confirmar
-        const requestsFeitos = [];
-        const reqHandler = (req) => {
-            const url = req.url();
-            if (url.includes('webdiet') || url.includes('.php'))
-                requestsFeitos.push(url);
-        };
-        page.on('request', reqHandler);
-        // ── 5. Confirma modelo em branco ──
-        const p5 = await clicar('confirmar', 8000);
-        console.log(`[webdiet] Clicou "confirmar": ${p5}`);
-        await new Promise(r => setTimeout(r, 2000));
-        console.log(`[webdiet] Requests após confirmar: ${JSON.stringify(requestsFeitos.slice(-5))}`);
-        page.off('request', reqHandler);
-        // ── 6. Aguarda navegação para metodoPlanning.php ──
-        try {
-            await page.waitForFunction(() => window.location.href.includes('metodoPlanning'), { timeout: 45000 });
-        }
-        catch {
-            const url = page.url();
-            console.warn(`[webdiet] Timeout metodoPlanning — URL atual: ${url}`);
-            if (!url.includes('metodoPlanning')) {
-                // Tenta clicar confirmar de novo (modal pode ter ficado aberto)
-                await clicar('confirmar', 3000);
-                await new Promise(r => setTimeout(r, 6000));
-                if (!page.url().includes('metodoPlanning')) {
-                    throw new Error(`Não navegou para metodoPlanning. URL atual: ${page.url()}`);
-                }
-            }
-        }
-        await new Promise(r => setTimeout(r, 3000));
-        console.log(`[webdiet] Editor aberto: ${page.url()}`);
-        // ── 6. Adiciona cada refeição ──
-        for (const { chave, nome, horario, sugestao } of refeicoesFiltradas) {
-            const opcoes = semana[chave];
-            // Monta HTML com as 3 opções rotativas
-            const html = opcoes.slice(0, 3).map((op, i) => `<p><strong>🔄 Opção ${i + 1}: ${op.nome}</strong> &nbsp;|&nbsp; ${op.calorias} kcal</p>` +
-                `<ul>${op.ingredientes.map(ing => `<li>${ing.item} — <em>${ing.quantidade}</em></li>`).join('')}</ul>` +
-                `<p><em>🍳 ${op.modo_preparo}</em></p>` +
-                `<p><small>PTN ${op.macros.ptn_g}g &nbsp;|&nbsp; CHO ${op.macros.cho_g}g &nbsp;|&nbsp; LIP ${op.macros.lip_g}g</small></p>`).join('<hr>');
-            // ── 6a. Nova refeição ──
-            const abriu = await clicar('nova refeição ou hábito', 8000);
-            if (!abriu) {
-                console.warn(`[webdiet] "nova refeição" não encontrado — pulando "${nome}"`);
-                continue;
-            }
-            await new Promise(r => setTimeout(r, 1000));
-            await clicar('criar nova refeição');
-            await new Promise(r => setTimeout(r, 1000));
-            // ── 6b. Seleciona nome da refeição ──
-            if (sugestao) {
-                // Tenta sugestão rápida; se não achar, preenche manualmente
-                const usouSugestao = await clicar(sugestao, 3000);
-                if (!usouSugestao) {
-                    await preencherNomeRefeicao(page, nome, horario);
-                    await clicar('confirmar');
-                }
-            }
-            else {
-                await preencherNomeRefeicao(page, nome, horario);
-                await clicar('confirmar');
-            }
-            // ── 6c. Aguarda modal do editor abrir ──
-            await new Promise(r => setTimeout(r, 3000));
-            // ── 6d. Insere HTML das 3 opções via TinyMCE ──
-            await inserirHtml(html);
-            await new Promise(r => setTimeout(r, 800));
-            // ── 6e. Confirma e fecha ──
-            const fechou = await clicar('confirmar e fechar', 5000);
-            if (!fechou)
-                await page.keyboard.press('Escape');
-            await new Promise(r => setTimeout(r, 1500));
-            console.log(`[webdiet] ✓ Refeição "${nome}" inserida (${opcoes.length} opções)`);
-        }
-        await new Promise(r => setTimeout(r, 2000));
-        console.log(`[webdiet] ✅ Prescrição concluída para: ${dados.nome}`);
+        await new Promise(r => setTimeout(r, 1500));
     }
-    catch (err) {
-        console.error('[webdiet] Erro em criarPrescricaoAlimentar:', err);
-        throw err;
-    }
-}
-// Helper separado: preenche nome e horário da refeição manualmente
-async function preencherNomeRefeicao(page, nome, horario) {
-    await page.evaluate((n, h) => {
-        // Horário
-        const timeInput = Array.from(document.querySelectorAll('input'))
-            .filter(el => el.offsetWidth > 0)
-            .find(el => el.type === 'time' || el.placeholder?.includes(':'));
-        if (timeInput) {
-            timeInput.focus();
-            timeInput.value = h;
-            timeInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        // Nome
-        const textInputs = Array.from(document.querySelectorAll('input[type="text"], input:not([type])'))
-            .filter(el => el.offsetWidth > 0);
-        const nameInput = textInputs[textInputs.length - 1];
-        if (nameInput) {
-            nameInput.focus();
-            nameInput.value = n;
-            nameInput.dispatchEvent(new Event('input', { bubbles: true }));
-            nameInput.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-    }, nome, horario);
+    return achou;
 }
 // ─── Função principal: inserir paciente + conteúdo completo ───
 // • Se paciente já existe no WebDiet: abre perfil existente
@@ -647,11 +442,14 @@ async function inserirPacienteWebdiet(dados) {
             console.log(`[webdiet] Paciente já existia, abrindo perfil: ${dados.nome}`);
         }
         await new Promise(r => setTimeout(r, 1500));
-        // ── 3. Se tem plano → só cria prescrição (paciente já tem anamnese) ──
+        // ── 3. Se tem plano → insere como anamnese "Plano Alimentar Completo" ──
         if (dados.planoAlimentar) {
-            console.log(`[webdiet] Criando prescrição alimentar para: ${dados.nome}`);
-            await criarPrescricaoAlimentar(page, dados);
-            console.log(`[webdiet] ✅ Prescrição publicada: ${dados.nome}`);
+            console.log(`[webdiet] Inserindo plano alimentar como anamnese para: ${dados.nome}`);
+            const hoje = new Date().toLocaleDateString('pt-BR');
+            const titulo = `📋 Plano Alimentar — ${dados.planoAlimentar.resumo.meta_calorica} kcal — ${hoje}`;
+            const html = formatarPlanoAnamnese(dados.planoAlimentar, dados);
+            await criarAnamnese(page, titulo, html);
+            console.log(`[webdiet] ✅ Plano inserido como anamnese: ${dados.nome}`);
             return true;
         }
         // ── 4. Sem plano → cria anamnese, metas e orientações ──
