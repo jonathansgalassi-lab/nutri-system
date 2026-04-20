@@ -394,32 +394,40 @@ async function criarPrescricaoAlimentar(page, dados) {
     };
     try {
         // ── 1. Abre Planejamento Alimentar ──
-        await esperarEClicar(page, 'Planejamento alimentar');
-        await new Promise(r => setTimeout(r, 1500));
-        // ── 2. Nova prescrição ──
-        await esperarEClicar(page, 'nova prescrição alimentar');
+        const p1 = await esperarEClicar(page, 'Planejamento alimentar', 8000);
+        console.log(`[webdiet] Clicou "Planejamento alimentar": ${p1}`);
         await new Promise(r => setTimeout(r, 2000));
+        // ── 2. Nova prescrição ──
+        const p2 = await esperarEClicar(page, 'nova prescrição alimentar', 8000);
+        console.log(`[webdiet] Clicou "nova prescrição alimentar": ${p2}`);
+        await new Promise(r => setTimeout(r, 2500));
         // ── 3. Nome da prescrição ──
         const nomePrescricao = `Plano IA — ${dados.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
-        await page.evaluate((nome) => {
-            const input = document.querySelector('input[placeholder*="Nome da prescrição"], input[placeholder*="Cardápio"], input[placeholder*="prescrição"]');
+        const preencheuNome = await page.evaluate((nome) => {
+            const input = document.querySelector('input[placeholder*="Nome"], input[placeholder*="Cardápio"], input[placeholder*="prescrição"], input[placeholder*="plano"]');
             if (!input)
-                return;
+                return false;
             input.focus();
             input.value = nome;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
         }, nomePrescricao);
-        // ── 4. Avança com "Por alimentos" (padrão) → confirma modelo em branco ──
-        await clicar('avançar');
-        await new Promise(r => setTimeout(r, 1500));
-        await clicar('confirmar');
-        // ── 5. Aguarda navegação para metodoPlanning.php ──
+        console.log(`[webdiet] Preencheu nome da prescrição: ${preencheuNome}`);
+        // ── 4. Avança ──
+        const p4 = await clicar('avançar', 8000);
+        console.log(`[webdiet] Clicou "avançar": ${p4}`);
+        await new Promise(r => setTimeout(r, 2000));
+        // ── 5. Confirma modelo em branco ──
+        const p5 = await clicar('confirmar', 8000);
+        console.log(`[webdiet] Clicou "confirmar": ${p5}`);
+        // ── 6. Aguarda navegação para metodoPlanning.php ──
         try {
             await page.waitForFunction(() => window.location.href.includes('metodoPlanning'), { timeout: 45000 });
         }
         catch {
             const url = page.url();
+            console.warn(`[webdiet] Timeout metodoPlanning — URL atual: ${url}`);
             if (!url.includes('metodoPlanning')) {
                 // Tenta clicar confirmar de novo (modal pode ter ficado aberto)
                 await clicar('confirmar', 3000);
