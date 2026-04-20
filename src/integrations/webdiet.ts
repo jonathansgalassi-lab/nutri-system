@@ -384,12 +384,52 @@ async function buscarEAbrirPaciente(page: Page, nome: string, telefone?: string)
 
   if (achou) {
     // Fecha modal "nova consulta?" se aparecer
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 2500));
     await page.evaluate(() => {
       const btns = Array.from(document.querySelectorAll<HTMLElement>('button, *'));
       btns.find(el => el.textContent?.toLowerCase().includes('não registrar'))?.click();
     });
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Verifica se o perfil do paciente ainda está aberto após "não registrar"
+    // (em algumas versões do WebDiet, o dismiss fecha o perfil também)
+    const perfilAberto = await page.evaluate(() => {
+      const textos = Array.from(document.querySelectorAll<HTMLElement>('*'))
+        .filter(e => e.offsetWidth > 0 && e.children.length <= 3)
+        .map(e => e.textContent?.trim().toLowerCase() ?? '');
+      return textos.some(t => t === 'planejamento alimentar' || t === 'anamnese geral' || t === 'avaliação nutricional');
+    });
+    console.log(`[webdiet] Perfil do paciente ainda aberto: ${perfilAberto}`);
+
+    if (!perfilAberto) {
+      // Perfil fechou após "não registrar" — re-abre clicando no paciente novamente
+      console.log('[webdiet] Perfil fechou, re-abrindo paciente...');
+      await new Promise(r => setTimeout(r, 1000));
+
+      // Re-clica no paciente na lista (agora sem modal de consulta pois já foi dispensado)
+      const reabriu = await page.evaluate((nomeBusca) => {
+        const seletores = ['.pacienteLinha', '.pacienteItem', '[class*="paciente-item"]', '[class*="pacienteLinha"]', '[class*="itemLista"]'];
+        let items: HTMLElement[] = [];
+        for (const sel of seletores) {
+          items = Array.from(document.querySelectorAll<HTMLElement>(sel));
+          if (items.length) break;
+        }
+        const primeiroNome = nomeBusca.split(' ')[0].toLowerCase();
+        const item = items.find(el => el.textContent?.toLowerCase().includes(primeiroNome)) ?? items[0];
+        if (item) { item.click(); return true; }
+        return false;
+      }, nome);
+
+      console.log(`[webdiet] Re-abriu paciente: ${reabriu}`);
+      await new Promise(r => setTimeout(r, 3000));
+
+      // Dispensa nova consulta se aparecer de novo
+      await page.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll<HTMLElement>('button, *'));
+        btns.find(el => el.textContent?.toLowerCase().includes('não registrar'))?.click();
+      });
+      await new Promise(r => setTimeout(r, 1500));
+    }
   }
 
   return achou;
