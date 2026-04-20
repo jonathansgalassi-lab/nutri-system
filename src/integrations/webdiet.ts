@@ -456,10 +456,29 @@ async function criarPrescricaoAlimentar(page: Page, dados: DadosPacienteWebdiet)
     console.log(`[webdiet] Clicou "Planejamento alimentar": ${p1}`);
     await new Promise(r => setTimeout(r, 3000)); // aguarda lista de prescrições carregar
 
+    // Debug: loga elementos visíveis contendo "prescri" para achar o texto exato do botão
+    const elementosPrescricao = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>('button, a, [class*="btn"], [onclick], [class*="nova"], [class*="add"], span, div'))
+        .filter(e => e.offsetWidth > 0 && e.offsetHeight > 0 && e.children.length <= 2)
+        .filter(e => e.textContent?.toLowerCase().includes('prescri') || e.textContent?.toLowerCase().includes('nova') || e.textContent?.toLowerCase().includes('adicionar'))
+        .map(e => `[${e.tagName}] "${e.textContent?.trim().slice(0, 60)}"`)
+        .slice(0, 15)
+    );
+    console.log('[webdiet] Botões disponíveis após clicar Planejamento alimentar:', JSON.stringify(elementosPrescricao));
+
     // ── 2. Nova prescrição (busca parcial — texto pode variar: "+", maiúscula, etc.) ──
     const p2 = await esperarEClicar(page, 'nova prescrição', true, 8000);
     console.log(`[webdiet] Clicou "nova prescrição": ${p2}`);
     await new Promise(r => setTimeout(r, 2500));
+
+    // Debug: loga o que apareceu após clicar
+    const elementosModal = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>('button, input, [class*="modal"] *, [class*="dialog"] *'))
+        .filter(e => e.offsetWidth > 0 && e.offsetHeight > 0)
+        .map(e => `[${e.tagName}] placeholder="${(e as HTMLInputElement).placeholder ?? ''}" text="${e.textContent?.trim().slice(0, 40)}"`)
+        .slice(0, 15)
+    );
+    console.log('[webdiet] Estado após clicar "nova prescrição":', JSON.stringify(elementosModal));
 
     // ── 3. Nome da prescrição ──
     const nomePrescricao = `Plano IA — ${dados.nome} — ${new Date().toLocaleDateString('pt-BR')}`;
