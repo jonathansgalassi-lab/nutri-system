@@ -414,13 +414,24 @@ async function criarPrescricaoAlimentar(page, dados) {
             return true;
         }, nomePrescricao);
         console.log(`[webdiet] Preencheu nome da prescrição: ${preencheuNome}`);
-        // ── 4. Avança ──
-        const p4 = await clicar('avançar', 8000, true);
+        // ── 4. Avança (exact match para não clicar elemento errado) ──
+        const p4 = await clicar('avançar', 8000);
         console.log(`[webdiet] Clicou "avançar": ${p4}`);
         await new Promise(r => setTimeout(r, 2000));
+        // Debug: loga qualquer request de rede após confirmar
+        const requestsFeitos = [];
+        const reqHandler = (req) => {
+            const url = req.url();
+            if (url.includes('webdiet') || url.includes('.php'))
+                requestsFeitos.push(url);
+        };
+        page.on('request', reqHandler);
         // ── 5. Confirma modelo em branco ──
-        const p5 = await clicar('confirmar', 8000, true);
+        const p5 = await clicar('confirmar', 8000);
         console.log(`[webdiet] Clicou "confirmar": ${p5}`);
+        await new Promise(r => setTimeout(r, 2000));
+        console.log(`[webdiet] Requests após confirmar: ${JSON.stringify(requestsFeitos.slice(-5))}`);
+        page.off('request', reqHandler);
         // ── 6. Aguarda navegação para metodoPlanning.php ──
         try {
             await page.waitForFunction(() => window.location.href.includes('metodoPlanning'), { timeout: 45000 });
