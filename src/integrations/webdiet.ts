@@ -491,20 +491,25 @@ async function criarPrescricaoAlimentar(page: Page, dados: DadosPacienteWebdiet)
   };
 
   try {
-    // ── 1. Abre Planejamento Alimentar ──
-    const p1 = await esperarEClicar(page, 'Planejamento alimentar', false, 8000);
-    console.log(`[webdiet] Clicou "Planejamento alimentar": ${p1}`);
-    await new Promise(r => setTimeout(r, 3000)); // aguarda lista de prescrições carregar
-
-    // Debug: loga elementos visíveis contendo "prescri" para achar o texto exato do botão
-    const elementosPrescricao = await page.evaluate(() =>
-      Array.from(document.querySelectorAll<HTMLElement>('button, a, [class*="btn"], [onclick], [class*="nova"], [class*="add"], span, div'))
-        .filter(e => e.offsetWidth > 0 && e.offsetHeight > 0 && e.children.length <= 2)
-        .filter(e => e.textContent?.toLowerCase().includes('prescri') || e.textContent?.toLowerCase().includes('nova') || e.textContent?.toLowerCase().includes('adicionar'))
-        .map(e => `[${e.tagName}] "${e.textContent?.trim().slice(0, 60)}"`)
-        .slice(0, 15)
+    // ── 1. Diagnóstico: lista TODOS os "Planejamento alimentar" no DOM ──
+    const elemsPlan = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>('*'))
+        .filter(e => e.offsetWidth > 0 && e.textContent?.toLowerCase().includes('planejamento alimentar'))
+        .filter(e => e.children.length <= 3)
+        .map((e, i) => `[${i}][${e.tagName}] "${e.textContent?.trim().slice(0, 60)}" cls="${e.className?.slice(0,40)}"`)
     );
-    console.log('[webdiet] Botões disponíveis após clicar Planejamento alimentar:', JSON.stringify(elementosPrescricao));
+    console.log('[webdiet] Elementos "Planejamento alimentar" no DOM:', JSON.stringify(elemsPlan));
+
+    // ── 1. Clica o ÚLTIMO "Planejamento alimentar" (painel do paciente, não sidebar geral) ──
+    const p1 = await page.evaluate(() => {
+      const todos = Array.from(document.querySelectorAll<HTMLElement>('*'))
+        .filter(e => e.offsetWidth > 0 && e.textContent?.trim() === 'Planejamento alimentar');
+      const el = todos[todos.length - 1]; // último = aba do perfil do paciente
+      if (el) { el.click(); return todos.length; }
+      return 0;
+    });
+    console.log(`[webdiet] Clicou "Planejamento alimentar" (${p1} encontrados, clicou último)`);
+    await new Promise(r => setTimeout(r, 3000));
 
     // ── 2. Nova prescrição (busca parcial — texto pode variar: "+", maiúscula, etc.) ──
     const p2 = await esperarEClicar(page, 'nova prescrição', true, 8000);
